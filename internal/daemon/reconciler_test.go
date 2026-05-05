@@ -3,6 +3,7 @@ package daemon
 import (
 	"testing"
 
+	"github.com/mochaka/devproxy/internal/config"
 	"github.com/mochaka/devproxy/internal/discovery"
 )
 
@@ -38,7 +39,7 @@ func TestReconcilerBuildsUpstreamMetadataAndServedHostInventory(t *testing.T) {
 			Labels: map[string]string{
 				"com.docker.compose.project": "acme",
 				"com.docker.compose.service": "api",
-				"devproxy.scheme":          "https",
+				"devproxy.scheme":            "https",
 			},
 			Ports: []discovery.PublishedPort{
 				{HostPort: 8080, Protocol: "tcp"},
@@ -103,3 +104,109 @@ func TestReconcilerPauseStateDoesNotDeleteSnapshotRoutes(t *testing.T) {
 		t.Fatalf("expected paused state to be explicit runtime flag")
 	}
 }
+
+func TestReconcilerAppliesMergedOverrides(t *testing.T) {
+	port := 3000
+	priority := 7
+	rec := NewReconciler(ReconcilerOptions{
+		Suffix:       "test",
+		RootServices: []string{"app", "web", "nginx", "laravel.test"},
+		Overrides: map[string]config.ProjectConfig{
+			"acme": {
+				Services: map[string]config.ServiceOverride{
+					"api": {
+						Domains:  []string{"edge.acme.test"},
+						Root:     boolPtr(true),
+						Port:     &port,
+						Scheme:   "https",
+						Priority: &priority,
+					},
+				},
+			},
+		},
+	})
+
+	containers := []ContainerState{{
+		ID:      "1",
+		Name:    "acme-api-1",
+		Running: true,
+		Labels: map[string]string{
+			"com.docker.compose.project": "acme",
+			"com.docker.compose.service": "api",
+		},
+		Ports: []discovery.PublishedPort{{HostPort: 8080, Protocol: "tcp"}, {HostPort: 3000, Protocol: "tcp"}},
+	}}
+
+	if err := rec.RebuildSnapshot(containers); err != nil {
+		t.Fatalf("rebuild failed: %v", err)
+	}
+
+	snap := rec.Snapshot()
+	route, ok := snap.Routes["acme.test"]
+	if !ok {
+		t.Fatalf("expected root override hostname to be published")
+	}
+	if _, ok := snap.Routes["edge.acme.test"]; !ok {
+		t.Fatalf("expected extra override domain to be published")
+	}
+	if route.Upstream.Port != 3000 {
+		t.Fatalf("expected override port 3000, got %d", route.Upstream.Port)
+	}
+	if route.Upstream.Scheme != "https" {
+		t.Fatalf("expected override scheme https, got %q", route.Upstream.Scheme)
+	}
+	if route.Priority != 7 {
+		t.Fatalf("expected override priority 7, got %d", route.Priority)
+	}
+	if len(route.ServedHostnames) != 2 {
+		t.Fatalf("expected served hostnames from merged domains, got %v", route.ServedHostnames)
+	}
+}
+
+func TestReconcilerLabelOverridesConfigForPortAndScheme(t *testing.T) {
+	configPort := 3000
+	rec := NewReconciler(ReconcilerOptions{
+		Suffix:       "test",
+		RootServices: []string{"app", "web", "nginx", "laravel.test"},
+		Overrides: map[string]config.ProjectConfig{
+			"acme": {
+				Services: map[string]config.ServiceOverride{
+					"api": {Port: &configPort, Scheme: "https"},
+				},
+			},
+		},
+	})
+
+	containers := []ContainerState{{
+		ID:      "1",
+		Name:    "acme-api-1",
+		Running: true,
+		Labels: map[string]string{
+			"com.docker.compose.project": "acme",
+			"com.docker.compose.service": "api",
+			"devproxy.port":              "8080",
+			"devproxy.scheme":            "http",
+		},
+		Ports: []discovery.PublishedPort{{HostPort: 8080, Protocol: "tcp"}, {HostPort: 3000, Protocol: "tcp"}},
+	}}
+
+	if err := rec.RebuildSnapshot(containers); err != nil {
+		t.Fatalf("rebuild failed: %v", err)
+	}
+
+	route, ok := rec.Snapshot().Routes["api.acme.test"]
+	if !ok {
+		t.Fatalf("expected default hostname route")
+	}
+	if route.Upstream.Port != 8080 {
+		t.Fatalf("expected label port 8080 to override config, got %d", route.Upstream.Port)
+	}
+	if route.Upstream.Scheme != "http" {
+		t.Fatalf("expected label scheme http to override config, got %q", route.Upstream.Scheme)
+	}
+	if route.Provenance.PortSource != "label" {
+		t.Fatalf("expected label port provenance, got %q", route.Provenance.PortSource)
+	}
+}
+
+func boolPtr(v bool) *bool { return &v }

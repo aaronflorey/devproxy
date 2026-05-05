@@ -72,8 +72,8 @@ func (l *HTTPSListener) getCertificate(hello *tls.ClientHelloInfo) (*tls.Certifi
 	}
 	host := normalizeHostname(hello.ServerName)
 	lookup := l.dnsLookup.LookupHostname(host)
-	if !lookup.Managed || !lookup.ActiveRoute {
-		return nil, fmt.Errorf("no active managed route for %s", host)
+	if !lookup.Managed {
+		return nil, fmt.Errorf("no managed route for %s", host)
 	}
 
 	if cert, ok := l.certificates[host]; ok {
