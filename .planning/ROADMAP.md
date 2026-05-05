@@ -55,7 +55,21 @@ Plans:
   3. Developer can use trusted HTTPS certificates generated via mkcert, with certificates regenerated when served hostnames change and reused when unchanged.
   4. Developer can run with HTTP on port 80 and HTTPS on port 443, with redirect-to-HTTPS remaining off by default unless configured globally or per route.
   5. Developer receives clear friendly responses when no route exists for a managed hostname or when routing is paused.
-**Plans**: TBD
+**Plans**: 5 plans
+
+Plans:
+**Wave 1**
+- [ ] 02-01-PLAN.md — Extend routing, reconciler, and config contracts for serving state, pause state, and redirect defaults.
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 02-02-PLAN.md — Build the managed-suffix DNS responder and hostname classification helpers.
+- [ ] 02-03-PLAN.md — Build the HTTP proxy path with friendly no-route and paused responses plus WebSocket-safe proxying.
+
+**Wave 3** *(blocked on Waves 1-2 completion as declared by plan dependencies)*
+- [ ] 02-04-PLAN.md — Add certificate inventory reuse rules and mkcert-backed issuance.
+
+**Wave 4** *(blocked on Waves 2-3 completion as declared by plan dependencies)*
+- [ ] 02-05-PLAN.md — Wire HTTPS listeners and shared network runtime health projections.
 
 ### Phase 3: Install, Daemon Lifecycle, and Diagnostics
 **Goal**: Developers can install, run, inspect, troubleshoot, and uninstall devproxy reliably on macOS.
@@ -89,6 +103,6 @@ Phases execute in numeric order: 2 → 2.1 → 2.2 → 3 → 3.1 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Discovery, Domains, and Conflict Policy | 0/5 | Planned | - |
-| 2. Local DNS, Proxy, and HTTPS Serving | 0/TBD | Not started | - |
+| 2. Local DNS, Proxy, and HTTPS Serving | 0/5 | Planned | - |
 | 3. Install, Daemon Lifecycle, and Diagnostics | 0/TBD | Not started | - |
 | 4. Menu Bar and Dashboard UX | 0/TBD | Not started | - |
