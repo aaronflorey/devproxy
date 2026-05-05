@@ -29,13 +29,13 @@ Requirements for initial release. Each maps to roadmap phases.
 ### DNS Proxy And HTTPS
 
 - [ ] **NET-01**: Developer can install a managed wildcard resolver so hostnames under the configured suffix resolve to `127.0.0.1`
-- [ ] **NET-02**: Developer can send HTTP requests for an active route and have devproxy proxy them to the selected localhost published port using the correct upstream scheme
+- [x] **NET-02**: Developer can send HTTP requests for an active route and have devproxy proxy them to the selected localhost published port using the correct upstream scheme
 - [ ] **NET-03**: Developer can use HTTPS for active routes with locally trusted certificates generated through `mkcert`
-- [ ] **NET-04**: Developer can have devproxy regenerate certificates when a project's served hostnames change and reuse valid certs when they do not
-- [ ] **NET-05**: Developer can use both HTTP on port `80` and HTTPS on port `443`, with HTTP-to-HTTPS redirect disabled by default and configurable globally or per route
+- [x] **NET-04**: Developer can have devproxy regenerate certificates when a project's served hostnames change and reuse valid certs when they do not
+- [x] **NET-05**: Developer can use both HTTP on port `80` and HTTPS on port `443`, with HTTP-to-HTTPS redirect disabled by default and configurable globally or per route
 - [ ] **NET-06**: Developer can use WebSocket traffic through devproxy for routed services
 - [ ] **NET-07**: Developer can get a friendly no-route response when a hostname under a managed suffix has no active mapping
-- [ ] **NET-08**: Developer can pause routing and receive a friendly paused response for managed hostnames while DNS resolution continues normally
+- [x] **NET-08**: Developer can pause routing and receive a friendly paused response for managed hostnames while DNS resolution continues normally
 
 ### Install Lifecycle And Diagnostics
 
@@ -99,13 +99,13 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DOMN-06 | Phase 1 | Complete |
 | DOMN-07 | Phase 1 | Complete |
 | NET-01 | Phase 2 | Pending |
-| NET-02 | Phase 2 | Pending |
+| NET-02 | Phase 2 | Complete |
 | NET-03 | Phase 2 | Pending |
-| NET-04 | Phase 2 | Pending |
-| NET-05 | Phase 2 | Pending |
+| NET-04 | Phase 2 | Complete |
+| NET-05 | Phase 2 | Complete |
 | NET-06 | Phase 2 | Pending |
 | NET-07 | Phase 2 | Pending |
-| NET-08 | Phase 2 | Pending |
+| NET-08 | Phase 2 | Complete |
 | OPS-01 | Phase 3 | Pending |
 | OPS-02 | Phase 3 | Pending |
 | OPS-03 | Phase 3 | Pending |
