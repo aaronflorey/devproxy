@@ -1,0 +1,80 @@
+# Roadmap: devproxy
+
+## Overview
+
+This roadmap delivers devproxy in four coarse phases that follow dependency order: deterministic discovery and route intent first, then local DNS/proxy/TLS data plane, then install and daemon operations, and finally menu bar/dashboard UX on top of the stable admin surface.
+
+## Phases
+
+**Phase Numbering:**
+- Integer phases (1, 2, 3): Planned milestone work
+- Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
+
+Decimal phases appear between their surrounding integers in numeric order.
+
+- [ ] **Phase 1: Discovery, Domains, and Conflict Policy** - Compute reliable route intent from running Compose containers and overrides.
+- [ ] **Phase 2: Local DNS, Proxy, and HTTPS Serving** - Make mapped domains resolve and serve HTTP/HTTPS traffic locally.
+- [ ] **Phase 3: Install, Daemon Lifecycle, and Diagnostics** - Make devproxy installable, operable, and debuggable on macOS.
+- [ ] **Phase 4: Menu Bar and Dashboard UX** - Expose daemon health and route controls through macOS UI surfaces.
+
+## Phase Details
+
+### Phase 1: Discovery, Domains, and Conflict Policy
+**Goal**: Developers can trust devproxy to discover eligible containers, compute deterministic domains, and resolve domain conflicts predictably without Compose edits.
+**Depends on**: Nothing (first phase)
+**Requirements**: DISC-01, DISC-02, DISC-03, DISC-04, DISC-05, DISC-06, DOMN-01, DOMN-02, DOMN-03, DOMN-04, DOMN-05, DOMN-06, DOMN-07
+**Success Criteria** (what must be TRUE):
+  1. Developer can start devproxy with running Compose projects and immediately see discovered routes generated from Compose metadata, with fallback name parsing only when labels are missing.
+  2. Developer can start, stop, rename, or recreate containers and see route mappings update to match current eligible published-port containers.
+  3. Developer can access services via default and root project domains, including Laravel Sail defaults like `laravel.test` and common companion subdomains.
+  4. Developer can set route behavior through config and Docker labels, with label values taking precedence for overlapping fields and invalid label fields ignored with explicit warnings.
+  5. Developer can observe deterministic winner/loser conflict outcomes and consistent conflict warnings across status, doctor, dashboard, and logs.
+**Plans**: TBD
+
+### Phase 2: Local DNS, Proxy, and HTTPS Serving
+**Goal**: Developers can resolve managed local domains and reliably reach active services over HTTP/HTTPS through devproxy.
+**Depends on**: Phase 1
+**Requirements**: NET-01, NET-02, NET-03, NET-04, NET-05, NET-06, NET-07, NET-08
+**Success Criteria** (what must be TRUE):
+  1. Developer can resolve hostnames under the managed suffix to `127.0.0.1` using the installed wildcard resolver.
+  2. Developer can send HTTP or HTTPS requests to an active mapped hostname and receive upstream responses from the selected localhost published port, including WebSocket traffic.
+  3. Developer can use trusted HTTPS certificates generated via mkcert, with certificates regenerated when served hostnames change and reused when unchanged.
+  4. Developer can run with HTTP on port 80 and HTTPS on port 443, with redirect-to-HTTPS remaining off by default unless configured globally or per route.
+  5. Developer receives clear friendly responses when no route exists for a managed hostname or when routing is paused.
+**Plans**: TBD
+
+### Phase 3: Install, Daemon Lifecycle, and Diagnostics
+**Goal**: Developers can install, run, inspect, troubleshoot, and uninstall devproxy reliably on macOS.
+**Depends on**: Phase 2
+**Requirements**: OPS-01, OPS-02, OPS-03, OPS-04, OPS-05, OPS-06, OPS-07, OPS-08, OPS-09
+**Success Criteria** (what must be TRUE):
+  1. Developer can run `devproxy install` and have required config/state paths, resolver, certificates, daemon LaunchAgent, and required services configured and started.
+  2. Developer can choose whether menu bar auto-start is installed, with menu bar LaunchAgent installed only when `--with-menubar` is used.
+  3. Developer can run `devproxy daemon` in foreground and receive explicit startup failures when Docker, certificate prerequisites, or listener ports are unavailable.
+  4. Developer can use `status`, `routes`, `refresh`, `doctor`, and `logs` to inspect live daemon health, route state, diagnostics, and current-session logs from the same local admin API source.
+  5. Developer can run uninstall and choose to retain or remove config, state, logs, and certificates.
+**Plans**: TBD
+
+### Phase 4: Menu Bar and Dashboard UX
+**Goal**: Developers can monitor devproxy and perform core control actions from the menu bar and local dashboard.
+**Depends on**: Phase 3
+**Requirements**: UI-01, UI-02, UI-03, UI-04
+**Success Criteria** (what must be TRUE):
+  1. Developer can view daemon health and active routes directly from the macOS menu bar app.
+  2. Developer can trigger refresh, open dashboard/logs, run doctor, pause routing, and toggle start-at-login from menu bar controls.
+  3. Developer can open a selected route from the menu bar over HTTPS when enabled for that route, otherwise HTTP.
+  4. Developer can open a local dashboard that shows daemon health, active routes, recent conflicts, and recent daemon-session errors.
+**Plans**: TBD
+**UI hint**: yes
+
+## Progress
+
+**Execution Order:**
+Phases execute in numeric order: 2 → 2.1 → 2.2 → 3 → 3.1 → 4
+
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 1. Discovery, Domains, and Conflict Policy | 0/TBD | Not started | - |
+| 2. Local DNS, Proxy, and HTTPS Serving | 0/TBD | Not started | - |
+| 3. Install, Daemon Lifecycle, and Diagnostics | 0/TBD | Not started | - |
+| 4. Menu Bar and Dashboard UX | 0/TBD | Not started | - |

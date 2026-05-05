@@ -85,12 +85,46 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
+| DISC-01 | Phase 1 | Pending |
+| DISC-02 | Phase 1 | Pending |
+| DISC-03 | Phase 1 | Pending |
+| DISC-04 | Phase 1 | Pending |
+| DISC-05 | Phase 1 | Pending |
+| DISC-06 | Phase 1 | Pending |
+| DOMN-01 | Phase 1 | Pending |
+| DOMN-02 | Phase 1 | Pending |
+| DOMN-03 | Phase 1 | Pending |
+| DOMN-04 | Phase 1 | Pending |
+| DOMN-05 | Phase 1 | Pending |
+| DOMN-06 | Phase 1 | Pending |
+| DOMN-07 | Phase 1 | Pending |
+| NET-01 | Phase 2 | Pending |
+| NET-02 | Phase 2 | Pending |
+| NET-03 | Phase 2 | Pending |
+| NET-04 | Phase 2 | Pending |
+| NET-05 | Phase 2 | Pending |
+| NET-06 | Phase 2 | Pending |
+| NET-07 | Phase 2 | Pending |
+| NET-08 | Phase 2 | Pending |
+| OPS-01 | Phase 3 | Pending |
+| OPS-02 | Phase 3 | Pending |
+| OPS-03 | Phase 3 | Pending |
+| OPS-04 | Phase 3 | Pending |
+| OPS-05 | Phase 3 | Pending |
+| OPS-06 | Phase 3 | Pending |
+| OPS-07 | Phase 3 | Pending |
+| OPS-08 | Phase 3 | Pending |
+| OPS-09 | Phase 3 | Pending |
+| UI-01 | Phase 4 | Pending |
+| UI-02 | Phase 4 | Pending |
+| UI-03 | Phase 4 | Pending |
+| UI-04 | Phase 4 | Pending |
 
 **Coverage:**
 - v1 requirements: 34 total
-- Mapped to phases: 0
-- Unmapped: 34 ⚠️
+- Mapped to phases: 34
+- Unmapped: 0 ✅
 
 ---
 *Requirements defined: 2026-05-05*
-*Last updated: 2026-05-05 after initial definition*
+*Last updated: 2026-05-05 after roadmap mapping*
