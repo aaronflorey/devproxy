@@ -81,7 +81,18 @@ Plans:
   3. Developer can run `devproxy daemon` in foreground and receive explicit startup failures when Docker, certificate prerequisites, or listener ports are unavailable.
   4. Developer can use `status`, `routes`, `refresh`, `doctor`, and `logs` to inspect live daemon health, route state, diagnostics, and current-session logs from the same local admin API source.
   5. Developer can run uninstall and choose to retain or remove config, state, logs, and certificates.
-**Plans**: TBD
+**Plans**: 4 plans
+
+Plans:
+**Wave 1**
+- [x] 03-01-PLAN.md — Build the daemon-owned admin socket API and fail-fast foreground daemon startup path.
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 03-02-PLAN.md — Add `status`, `routes`, `refresh`, and `logs` as thin clients of the daemon control plane.
+- [ ] 03-03-PLAN.md — Implement macOS install orchestration for paths, resolver wiring, launchd services, and optional menu bar auto-start.
+
+**Wave 3** *(blocked on Waves 1-2 completion as declared by plan dependencies)*
+- [ ] 03-04-PLAN.md — Add doctor checks for live macOS/runtime health plus selective uninstall cleanup.
 
 ### Phase 4: Menu Bar and Dashboard UX
 **Goal**: Developers can monitor devproxy and perform core control actions from the menu bar and local dashboard.
@@ -104,5 +115,5 @@ Phases execute in numeric order: 2 → 2.1 → 2.2 → 3 → 3.1 → 4
 |-------|----------------|--------|-----------|
 | 1. Discovery, Domains, and Conflict Policy | 0/5 | Planned | - |
 | 2. Local DNS, Proxy, and HTTPS Serving | 5/5 | Complete   | 2026-05-05 |
-| 3. Install, Daemon Lifecycle, and Diagnostics | 0/TBD | Not started | - |
+| 3. Install, Daemon Lifecycle, and Diagnostics | 0/4 | Not started | - |
 | 4. Menu Bar and Dashboard UX | 0/TBD | Not started | - |
