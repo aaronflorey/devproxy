@@ -1,6 +1,7 @@
 package install
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -55,6 +56,17 @@ func InstallService(cfg LaunchdServiceConfig) error {
 
 func StartService(cfg LaunchdServiceConfig) error {
 	return runLaunchctl("bootstrap", domainTarget(cfg), cfg.PlistPath)
+}
+
+func StopService(_ context.Context, cfg LaunchdServiceConfig) error {
+	return runLaunchctl("bootout", domainTarget(cfg), cfg.PlistPath)
+}
+
+func UninstallService(_ context.Context, cfg LaunchdServiceConfig) error {
+	if err := os.Remove(cfg.PlistPath); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("remove launchd plist %q: %w", cfg.PlistPath, err)
+	}
+	return nil
 }
 
 func plistFor(cfg LaunchdServiceConfig) string {

@@ -57,6 +57,14 @@ func (c *Client) Logs(ctx context.Context) ([]admin.LogEvent, error) {
 	return payload.Events, nil
 }
 
+func (c *Client) Doctor(ctx context.Context) (admin.DoctorView, error) {
+	payload, err := fetchJSON[DoctorResponse](ctx, c.httpClient, "/doctor")
+	if err != nil {
+		return admin.DoctorView{}, err
+	}
+	return payload.Doctor, nil
+}
+
 func (c *Client) Refresh(ctx context.Context, reason string) (RefreshResponse, error) {
 	request := RefreshRequest{Reason: reason}
 	body, err := json.Marshal(request)

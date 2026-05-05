@@ -44,9 +44,12 @@ func TestUninstallAlwaysStopsAndUnregistersBeforeOptionalCleanup(t *testing.T) {
 
 	var steps []string
 	u := NewUninstaller(UninstallDependencies{
-		StopDaemonService:      func(context.Context, LaunchdServiceConfig) error { steps = append(steps, "stop-daemon"); return nil },
-		UninstallDaemonService: func(context.Context, LaunchdServiceConfig) error { steps = append(steps, "uninstall-daemon"); return nil },
-		StopMenubarService:     func(context.Context, LaunchdServiceConfig) error { steps = append(steps, "stop-menubar"); return nil },
+		StopDaemonService: func(context.Context, LaunchdServiceConfig) error { steps = append(steps, "stop-daemon"); return nil },
+		UninstallDaemonService: func(context.Context, LaunchdServiceConfig) error {
+			steps = append(steps, "uninstall-daemon")
+			return nil
+		},
+		StopMenubarService: func(context.Context, LaunchdServiceConfig) error { steps = append(steps, "stop-menubar"); return nil },
 		UninstallMenubarService: func(context.Context, LaunchdServiceConfig) error {
 			steps = append(steps, "uninstall-menubar")
 			return nil
@@ -61,7 +64,7 @@ func TestUninstallAlwaysStopsAndUnregistersBeforeOptionalCleanup(t *testing.T) {
 	err := u.Uninstall(context.Background(), UninstallOptions{
 		Suffix:      "test",
 		WithMenubar: true,
-		Cleanup: CleanupScope{Config: true, State: true, Logs: true, Certificates: true},
+		Cleanup:     CleanupScope{Config: true, State: true, Logs: true, Certificates: true},
 	})
 	if err != nil {
 		t.Fatalf("uninstall failed: %v", err)
