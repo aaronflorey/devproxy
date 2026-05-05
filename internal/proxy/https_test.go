@@ -60,6 +60,39 @@ func TestHTTPSListenerSelectsCertificateForManagedActiveRoute(t *testing.T) {
 	}
 }
 
+func TestHTTPSListenerSelectsCertificateForManagedNoRouteHost(t *testing.T) {
+	leaf := mustTestCertificate(t, []string{"acme.test", "*.acme.test"})
+
+	l, err := NewHTTPSListener(HTTPSListenerConfig{
+		ManagedSuffix: "test",
+		Snapshot:      staticSnapshot(routing.Snapshot{Routes: map[string]routing.Route{}}),
+		Certificates:  map[string]tls.Certificate{"acme.test": leaf},
+	})
+	if err != nil {
+		t.Fatalf("new https listener: %v", err)
+	}
+
+	cert, err := l.TLSConfig().GetCertificate(&tls.ClientHelloInfo{ServerName: "missing.acme.test"})
+	if err != nil {
+		t.Fatalf("expected certificate selection for managed no-route host: %v", err)
+	}
+	if cert == nil {
+		t.Fatalf("expected certificate for managed no-route host")
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "https://missing.acme.test/", nil)
+	req.Host = "missing.acme.test"
+	rr := httptest.NewRecorder()
+
+	claimed := l.HandleHTTPS(rr, req)
+	if !claimed {
+		t.Fatalf("expected managed host to be claimed")
+	}
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for managed no-route, got %d", rr.Code)
+	}
+}
+
 func TestHTTPSListenerSharesFriendlyNoRouteAndPausedBehavior(t *testing.T) {
 	t.Run("no route", func(t *testing.T) {
 		l, err := NewHTTPSListener(HTTPSListenerConfig{
@@ -121,7 +154,7 @@ func mustTestCertificate(t *testing.T, dnsNames []string) tls.Certificate {
 
 	tmpl := &x509.Certificate{
 		SerialNumber: big.NewInt(1),
-		Subject: pkix.Name{CommonName: dnsNames[0]},
+		Subject:      pkix.Name{CommonName: dnsNames[0]},
 		NotBefore:    time.Now().Add(-time.Minute),
 		NotAfter:     time.Now().Add(time.Hour),
 		DNSNames:     dnsNames,
