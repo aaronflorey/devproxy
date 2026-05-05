@@ -29,7 +29,21 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. Developer can access services via default and root project domains, including Laravel Sail defaults like `laravel.test` and common companion subdomains.
   4. Developer can set route behavior through config and Docker labels, with label values taking precedence for overlapping fields and invalid label fields ignored with explicit warnings.
   5. Developer can observe deterministic winner/loser conflict outcomes and consistent conflict warnings across status, doctor, dashboard, and logs.
-**Plans**: TBD
+**Plans**: 5 plans
+
+Plans:
+**Wave 1**
+- [ ] 01-01-PLAN.md — Bootstrap the Go module, CLI root, and shared config/routing contracts.
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 01-02-PLAN.md — Build discovery normalization for Docker metadata, eligibility, and port selection.
+- [ ] 01-03-PLAN.md — Build domain generation and override precedence for default, root, Sail, and explicit domains.
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 01-04-PLAN.md — Resolve conflicts deterministically and publish immutable route snapshots.
+
+**Wave 4** *(blocked on Wave 3 completion)*
+- [ ] 01-05-PLAN.md — Wire reconciliation, Docker events, and shared status/routes/doctor/log read models.
 
 ### Phase 2: Local DNS, Proxy, and HTTPS Serving
 **Goal**: Developers can resolve managed local domains and reliably reach active services over HTTP/HTTPS through devproxy.
@@ -74,7 +88,7 @@ Phases execute in numeric order: 2 → 2.1 → 2.2 → 3 → 3.1 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Discovery, Domains, and Conflict Policy | 0/TBD | Not started | - |
+| 1. Discovery, Domains, and Conflict Policy | 0/5 | Planned | - |
 | 2. Local DNS, Proxy, and HTTPS Serving | 0/TBD | Not started | - |
 | 3. Install, Daemon Lifecycle, and Diagnostics | 0/TBD | Not started | - |
 | 4. Menu Bar and Dashboard UX | 0/TBD | Not started | - |

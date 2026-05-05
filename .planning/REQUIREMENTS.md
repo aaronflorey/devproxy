@@ -9,22 +9,22 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Discovery And Routing
 
-- [ ] **DISC-01**: Developer can have devproxy discover running containers with published TCP ports on startup and refresh without changing Compose files
-- [ ] **DISC-02**: Developer can have devproxy keep route state current as containers start, stop, die, destroy, rename, and update
-- [ ] **DISC-03**: Developer can have devproxy infer Compose project and service names from Docker Compose labels, with container-name parsing only as a fallback when labels are unavailable
-- [ ] **DISC-04**: Developer can trust devproxy to route only eligible containers that are running, have a usable published TCP port, and are not disabled or ignored
-- [ ] **DISC-05**: Developer can rely on deterministic conflict resolution when multiple containers claim the same domain, using priority first and a stable tie-break when priorities match
-- [ ] **DISC-06**: Developer can see conflict warnings and losing candidates consistently in logs, `doctor`, `status`, and the dashboard
+- [x] **DISC-01**: Developer can have devproxy discover running containers with published TCP ports on startup and refresh without changing Compose files
+- [x] **DISC-02**: Developer can have devproxy keep route state current as containers start, stop, die, destroy, rename, and update
+- [x] **DISC-03**: Developer can have devproxy infer Compose project and service names from Docker Compose labels, with container-name parsing only as a fallback when labels are unavailable
+- [x] **DISC-04**: Developer can trust devproxy to route only eligible containers that are running, have a usable published TCP port, and are not disabled or ignored
+- [x] **DISC-05**: Developer can rely on deterministic conflict resolution when multiple containers claim the same domain, using priority first and a stable tie-break when priorities match
+- [x] **DISC-06**: Developer can see conflict warnings and losing candidates consistently in logs, `doctor`, `status`, and the dashboard
 
 ### Domains And Overrides
 
-- [ ] **DOMN-01**: Developer can access a discovered service at the default domain `{service}.{project}.{suffix}`
-- [ ] **DOMN-02**: Developer can access a configured root service at the project root domain `{project}.{suffix}`
-- [ ] **DOMN-03**: Laravel Sail users can have `laravel.test` map to the project root domain and common companion services receive their standard subdomains automatically
-- [ ] **DOMN-04**: Developer can override route behavior with Docker labels for enable/disable, domain, domains, root mapping, port, scheme, and priority
-- [ ] **DOMN-05**: Developer can define route overrides in config, while Docker labels take precedence for the same route fields in v1
-- [ ] **DOMN-06**: Developer can use explicit local-only custom domains, with public internet suffixes rejected and unmanaged suffixes allowed only with clear DNS warnings
-- [ ] **DOMN-07**: Developer can trust invalid label values to be ignored field-by-field with clear warnings instead of silent acceptance or daemon failure
+- [x] **DOMN-01**: Developer can access a discovered service at the default domain `{service}.{project}.{suffix}`
+- [x] **DOMN-02**: Developer can access a configured root service at the project root domain `{project}.{suffix}`
+- [x] **DOMN-03**: Laravel Sail users can have `laravel.test` map to the project root domain and common companion services receive their standard subdomains automatically
+- [x] **DOMN-04**: Developer can override route behavior with Docker labels for enable/disable, domain, domains, root mapping, port, scheme, and priority
+- [x] **DOMN-05**: Developer can define route overrides in config, while Docker labels take precedence for the same route fields in v1
+- [x] **DOMN-06**: Developer can use explicit local-only custom domains, with public internet suffixes rejected and unmanaged suffixes allowed only with clear DNS warnings
+- [x] **DOMN-07**: Developer can trust invalid label values to be ignored field-by-field with clear warnings instead of silent acceptance or daemon failure
 
 ### DNS Proxy And HTTPS
 
@@ -85,19 +85,19 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DISC-01 | Phase 1 | Pending |
-| DISC-02 | Phase 1 | Pending |
-| DISC-03 | Phase 1 | Pending |
-| DISC-04 | Phase 1 | Pending |
-| DISC-05 | Phase 1 | Pending |
-| DISC-06 | Phase 1 | Pending |
-| DOMN-01 | Phase 1 | Pending |
-| DOMN-02 | Phase 1 | Pending |
-| DOMN-03 | Phase 1 | Pending |
-| DOMN-04 | Phase 1 | Pending |
-| DOMN-05 | Phase 1 | Pending |
-| DOMN-06 | Phase 1 | Pending |
-| DOMN-07 | Phase 1 | Pending |
+| DISC-01 | Phase 1 | Complete |
+| DISC-02 | Phase 1 | Complete |
+| DISC-03 | Phase 1 | Complete |
+| DISC-04 | Phase 1 | Complete |
+| DISC-05 | Phase 1 | Complete |
+| DISC-06 | Phase 1 | Complete |
+| DOMN-01 | Phase 1 | Complete |
+| DOMN-02 | Phase 1 | Complete |
+| DOMN-03 | Phase 1 | Complete |
+| DOMN-04 | Phase 1 | Complete |
+| DOMN-05 | Phase 1 | Complete |
+| DOMN-06 | Phase 1 | Complete |
+| DOMN-07 | Phase 1 | Complete |
 | NET-01 | Phase 2 | Pending |
 | NET-02 | Phase 2 | Pending |
 | NET-03 | Phase 2 | Pending |
