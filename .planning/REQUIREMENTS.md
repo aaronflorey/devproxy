@@ -42,10 +42,10 @@ Requirements for initial release. Each maps to roadmap phases.
 - [ ] **OPS-01**: Developer can run `devproxy install` to create config and state directories, install the resolver, install certificates, install the daemon LaunchAgent, and start required services
 - [ ] **OPS-02**: Developer can install the menu bar LaunchAgent only when `devproxy install --with-menubar` is used
 - [x] **OPS-03**: Developer can run `devproxy daemon` in the foreground and get a clear startup failure when Docker, certificate prerequisites, or listener ports are unavailable
-- [ ] **OPS-04**: Developer can inspect daemon health, install state, and active route counts with `devproxy status`
-- [ ] **OPS-05**: Developer can inspect active mappings with `devproxy routes` and trigger a full container rescan with `devproxy refresh`
+- [x] **OPS-04**: Developer can inspect daemon health, install state, and active route counts with `devproxy status`
+- [x] **OPS-05**: Developer can inspect active mappings with `devproxy routes` and trigger a full container rescan with `devproxy refresh`
 - [ ] **OPS-06**: Developer can run `devproxy doctor` and get checks for Docker reachability, DNS, resolver configuration, port binding, mkcert, local CA, LaunchAgent state, proxy reachability, and example domain resolution
-- [ ] **OPS-07**: Developer can stream current-session daemon logs with `devproxy logs`
+- [x] **OPS-07**: Developer can stream current-session daemon logs with `devproxy logs`
 - [ ] **OPS-08**: Developer can uninstall devproxy and be prompted whether to keep or remove config, state, logs, and certificates
 - [x] **OPS-09**: Developer can rely on a local admin API socket as the shared source for CLI, dashboard, and menu bar state
 
@@ -109,10 +109,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | OPS-01 | Phase 3 | Pending |
 | OPS-02 | Phase 3 | Pending |
 | OPS-03 | Phase 3 | Complete |
-| OPS-04 | Phase 3 | Pending |
-| OPS-05 | Phase 3 | Pending |
+| OPS-04 | Phase 3 | Complete |
+| OPS-05 | Phase 3 | Complete |
 | OPS-06 | Phase 3 | Pending |
-| OPS-07 | Phase 3 | Pending |
+| OPS-07 | Phase 3 | Complete |
 | OPS-08 | Phase 3 | Pending |
 | OPS-09 | Phase 3 | Complete |
 | UI-01 | Phase 4 | Pending |
