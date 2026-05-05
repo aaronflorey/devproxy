@@ -13,11 +13,11 @@ func TestDoctorChecksRuntimeAndResolverEvidence(t *testing.T) {
 	t.Parallel()
 
 	checker := NewChecker(Dependencies{
-		CheckDocker:       func(context.Context) error { return nil },
-		CheckLaunchd:      func(context.Context) error { return nil },
-		CheckAdminSocket:  func(context.Context) error { return nil },
-		CheckProxyHTTP:    func(context.Context) error { return nil },
-		CheckProxyHTTPS:   func(context.Context) error { return nil },
+		CheckDocker:      func(context.Context) error { return nil },
+		CheckLaunchd:     func(context.Context) error { return nil },
+		CheckAdminSocket: func(context.Context) error { return nil },
+		CheckProxyHTTP:   func(context.Context) error { return nil },
+		CheckProxyHTTPS:  func(context.Context) error { return nil },
 		ResolveExampleHost: func(context.Context, string) (string, error) {
 			return "127.0.0.1", nil
 		},
@@ -33,8 +33,8 @@ func TestDoctorChecksRuntimeAndResolverEvidence(t *testing.T) {
 				ManagedSuffix:    "test",
 			}, nil
 		},
-		CheckMKCert:   func(context.Context) error { return nil },
-		CheckLocalCA:  func(context.Context) error { return nil },
+		CheckMKCert:  func(context.Context) error { return nil },
+		CheckLocalCA: func(context.Context) error { return nil },
 	})
 
 	report := checker.Run(context.Background(), "acme.test")
