@@ -1,6 +1,7 @@
 package adminapi
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"net"
@@ -98,6 +99,7 @@ func TestClientReturnsExplicitSocketAndMalformedResponseErrors(t *testing.T) {
 			return
 		}
 		defer conn.Close()
+		_ = drainHTTPHeaders(conn)
 		_, _ = conn.Write([]byte("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 8\r\n\r\nnot-json"))
 	}()
 
@@ -124,6 +126,7 @@ func TestClientReturnsErrorOnMalformedRefreshResponse(t *testing.T) {
 			return
 		}
 		defer conn.Close()
+		_ = drainHTTPHeaders(conn)
 		_, _ = conn.Write([]byte("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 8\r\n\r\nnot-json"))
 	}()
 
@@ -168,5 +171,18 @@ func TestClientUsesPostForRefresh(t *testing.T) {
 	_, _ = client.Refresh(context.Background(), "operator")
 	if got := <-gotMethod; got != "POST" {
 		t.Fatalf("expected POST /refresh, got %q", got)
+	}
+}
+
+func drainHTTPHeaders(conn net.Conn) error {
+	reader := bufio.NewReader(conn)
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			return err
+		}
+		if line == "\r\n" {
+			return nil
+		}
 	}
 }
