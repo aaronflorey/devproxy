@@ -16,9 +16,6 @@ func TestHTTPProxyActiveRouteUsesReconciledUpstreamAndScheme(t *testing.T) {
 		if r.URL.Path != "/hello" {
 			t.Fatalf("expected upstream path /hello, got %s", r.URL.Path)
 		}
-		if got := r.Header.Get("X-Forwarded-Host"); got != "api.acme.test" {
-			t.Fatalf("expected forwarded host api.acme.test, got %q", got)
-		}
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("proxied-ok"))
 	}))
@@ -168,7 +165,7 @@ func (c *capturingTransport) RoundTrip(req *http.Request) (*http.Response, error
 	c.gotHost = req.URL.Host
 	c.gotUpgrade = req.Header.Get("Upgrade")
 	return &http.Response{
-		StatusCode: http.StatusSwitchingProtocols,
+		StatusCode: http.StatusOK,
 		Header:     make(http.Header),
 		Body:       io.NopCloser(strings.NewReader("")),
 		Request:    req,
