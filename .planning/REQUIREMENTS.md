@@ -44,9 +44,9 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **OPS-03**: Developer can run `devproxy daemon` in the foreground and get a clear startup failure when Docker, certificate prerequisites, or listener ports are unavailable
 - [x] **OPS-04**: Developer can inspect daemon health, install state, and active route counts with `devproxy status`
 - [x] **OPS-05**: Developer can inspect active mappings with `devproxy routes` and trigger a full container rescan with `devproxy refresh`
-- [ ] **OPS-06**: Developer can run `devproxy doctor` and get checks for Docker reachability, DNS, resolver configuration, port binding, mkcert, local CA, LaunchAgent state, proxy reachability, and example domain resolution
+- [x] **OPS-06**: Developer can run `devproxy doctor` and get checks for Docker reachability, DNS, resolver configuration, port binding, mkcert, local CA, LaunchAgent state, proxy reachability, and example domain resolution
 - [x] **OPS-07**: Developer can stream current-session daemon logs with `devproxy logs`
-- [ ] **OPS-08**: Developer can uninstall devproxy and be prompted whether to keep or remove config, state, logs, and certificates
+- [x] **OPS-08**: Developer can uninstall devproxy and be prompted whether to keep or remove config, state, logs, and certificates
 - [x] **OPS-09**: Developer can rely on a local admin API socket as the shared source for CLI, dashboard, and menu bar state
 
 ### Menu Bar And Dashboard
@@ -111,9 +111,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | OPS-03 | Phase 3 | Complete |
 | OPS-04 | Phase 3 | Complete |
 | OPS-05 | Phase 3 | Complete |
-| OPS-06 | Phase 3 | Pending |
+| OPS-06 | Phase 3 | Complete |
 | OPS-07 | Phase 3 | Complete |
-| OPS-08 | Phase 3 | Pending |
+| OPS-08 | Phase 3 | Complete |
 | OPS-09 | Phase 3 | Complete |
 | UI-01 | Phase 4 | Pending |
 | UI-02 | Phase 4 | Pending |

@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
+status: verifying
 stopped_at: Completed 03-03-PLAN.md
-last_updated: "2026-05-05T23:48:16.951Z"
+last_updated: "2026-05-05T23:54:42.252Z"
 last_activity: 2026-05-05
 progress:
   total_phases: 4
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 17
-  completed_plans: 16
-  percent: 94
+  completed_plans: 17
+  percent: 100
 ---
 
 # Project State
@@ -27,10 +27,10 @@ See: .planning/PROJECT.md (updated 2026-05-05)
 
 Phase: 03 (install-daemon-lifecycle-and-diagnostics) — EXECUTING
 Plan: 4 of 4
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-05-05
 
-Progress: [█████████░] 94%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -59,6 +59,7 @@ Progress: [█████████░] 94%
 | Phase 03 P01 | 16 min | 2 tasks | 10 files |
 | Phase 03 P02 | 4min | 2 tasks | 7 files |
 | Phase 03 P03 | 14 min | 2 tasks | 6 files |
+| Phase 03 P04 | 3 min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -89,6 +90,8 @@ Recent decisions affecting current work:
 - [Phase 03]: logs command outputs current-session events only — Persisted history remains deferred
 - [Phase ?]: Installer orchestration uses dependency injection for explicit, testable install steps.
 - [Phase ?]: Launchd roles stay split: system daemon by default, menubar only with --with-menubar.
+- [Phase 03]: Doctor validates resolver activation with scutil --dns evidence and live daemon reachability checks. — Aligns diagnostics with real macOS resolver behavior and daemon control-plane state.
+- [Phase 03]: Uninstall performs service stop/unregister and resolver removal before optional cleanup, honoring per-category user choices. — Prevents lingering runtime side-effects while preserving explicit user cleanup scope control.
 
 ### Pending Todos
 
@@ -108,6 +111,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-05-05T23:48:16.941Z
+Last session: 2026-05-05T23:54:33.428Z
 Stopped at: Completed 03-03-PLAN.md
 Resume file: None
