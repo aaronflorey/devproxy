@@ -4,8 +4,10 @@ import "github.com/mochaka/devproxy/internal/routing"
 
 type RouteView struct {
 	Hostname      string
+	UpstreamScheme string
 	UpstreamHost  string
 	UpstreamPort  int
+	HandlingState string
 	Winner        string
 	Losers        []string
 	Conflict      bool
@@ -19,7 +21,7 @@ func RoutesFromSnapshot(snapshot routing.Snapshot) []RouteView {
 
 	out := []RouteView{}
 	for host, route := range snapshot.Routes {
-		view := RouteView{Hostname: host, UpstreamHost: route.Upstream.Host, UpstreamPort: route.Upstream.Port, Winner: route.Winner.ContainerName}
+		view := RouteView{Hostname: host, UpstreamScheme: route.Upstream.Scheme, UpstreamHost: route.Upstream.Host, UpstreamPort: route.Upstream.Port, HandlingState: "proxy", Winner: route.Winner.ContainerName}
 		if conflict, ok := conflictsByHost[host]; ok {
 			view.Conflict = true
 			for _, loser := range conflict.Losers {
