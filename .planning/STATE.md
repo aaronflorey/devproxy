@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 03-01-PLAN.md
-last_updated: "2026-05-05T23:43:25.915Z"
+stopped_at: Completed 03-03-PLAN.md
+last_updated: "2026-05-05T23:48:16.951Z"
 last_activity: 2026-05-05
 progress:
   total_phases: 4
   completed_phases: 2
   total_plans: 17
-  completed_plans: 15
-  percent: 88
+  completed_plans: 16
+  percent: 94
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-05-05)
 ## Current Position
 
 Phase: 03 (install-daemon-lifecycle-and-diagnostics) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 Status: Ready to execute
 Last activity: 2026-05-05
 
-Progress: [█████████░] 88%
+Progress: [█████████░] 94%
 
 ## Performance Metrics
 
@@ -58,6 +58,7 @@ Progress: [█████████░] 88%
 | Phase 02-local-dns-proxy-and-https-serving P05 | 2 min | 2 tasks | 6 files |
 | Phase 03 P01 | 16 min | 2 tasks | 10 files |
 | Phase 03 P02 | 4min | 2 tasks | 7 files |
+| Phase 03 P03 | 14 min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -86,6 +87,8 @@ Recent decisions affecting current work:
 - [Phase 03]: Enforced fail-fast foreground startup by validating Docker reachability, mkcert prerequisites, and listener binds before serving admin endpoints.
 - [Phase 03]: Operator commands now consume daemon state via UNIX socket client — Preserves daemon as single source of truth
 - [Phase 03]: logs command outputs current-session events only — Persisted history remains deferred
+- [Phase ?]: Installer orchestration uses dependency injection for explicit, testable install steps.
+- [Phase ?]: Launchd roles stay split: system daemon by default, menubar only with --with-menubar.
 
 ### Pending Todos
 
@@ -105,6 +108,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-05-05T23:43:02.231Z
-Stopped at: Completed 03-01-PLAN.md
+Last session: 2026-05-05T23:48:16.941Z
+Stopped at: Completed 03-03-PLAN.md
 Resume file: None

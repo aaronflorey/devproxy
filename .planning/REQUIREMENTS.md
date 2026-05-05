@@ -39,8 +39,8 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Install Lifecycle And Diagnostics
 
-- [ ] **OPS-01**: Developer can run `devproxy install` to create config and state directories, install the resolver, install certificates, install the daemon LaunchAgent, and start required services
-- [ ] **OPS-02**: Developer can install the menu bar LaunchAgent only when `devproxy install --with-menubar` is used
+- [x] **OPS-01**: Developer can run `devproxy install` to create config and state directories, install the resolver, install certificates, install the daemon LaunchAgent, and start required services
+- [x] **OPS-02**: Developer can install the menu bar LaunchAgent only when `devproxy install --with-menubar` is used
 - [x] **OPS-03**: Developer can run `devproxy daemon` in the foreground and get a clear startup failure when Docker, certificate prerequisites, or listener ports are unavailable
 - [x] **OPS-04**: Developer can inspect daemon health, install state, and active route counts with `devproxy status`
 - [x] **OPS-05**: Developer can inspect active mappings with `devproxy routes` and trigger a full container rescan with `devproxy refresh`
@@ -106,8 +106,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | NET-06 | Phase 2 | Complete |
 | NET-07 | Phase 2 | Complete |
 | NET-08 | Phase 2 | Complete |
-| OPS-01 | Phase 3 | Pending |
-| OPS-02 | Phase 3 | Pending |
+| OPS-01 | Phase 3 | Complete |
+| OPS-02 | Phase 3 | Complete |
 | OPS-03 | Phase 3 | Complete |
 | OPS-04 | Phase 3 | Complete |
 | OPS-05 | Phase 3 | Complete |
