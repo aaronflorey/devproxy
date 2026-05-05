@@ -2,8 +2,6 @@ package admin
 
 import (
 	"time"
-
-	"github.com/mochaka/devproxy/internal/daemon"
 	"github.com/mochaka/devproxy/internal/routing"
 )
 
@@ -13,12 +11,18 @@ type StatusView struct {
 	Conflicts       int
 	Warnings        int
 	LastSync        time.Time
-	Watcher         daemon.WatcherHealth
+	Watcher         WatcherHealth
 	DNS             DNSStatus
 	HTTP            ListenerStatus
 	HTTPS           ListenerStatus
 	Paused          bool
 	CertificateReady bool
+}
+
+type WatcherHealth struct {
+	Connected         bool
+	LastDisconnect    time.Time
+	LastReconnectSync time.Time
 }
 
 type DNSStatus struct {
@@ -41,7 +45,7 @@ type NetworkRuntimeStatus struct {
 	CertificateReady bool
 }
 
-func BuildStatus(snapshot routing.Snapshot, watcher daemon.WatcherHealth, lastSync time.Time, runtime NetworkRuntimeStatus) StatusView {
+func BuildStatus(snapshot routing.Snapshot, watcher WatcherHealth, lastSync time.Time, runtime NetworkRuntimeStatus) StatusView {
 	return StatusView{
 		SnapshotVersion:  snapshot.Version,
 		ActiveRoutes:     len(snapshot.Routes),
@@ -57,7 +61,16 @@ func BuildStatus(snapshot routing.Snapshot, watcher daemon.WatcherHealth, lastSy
 	}
 }
 
-func NetworkRuntimeStatusFromDaemon(health daemon.NetworkRuntimeHealth) NetworkRuntimeStatus {
+type NetworkRuntimeHealth struct {
+	DNS              ListenerStatus
+	HTTP             ListenerStatus
+	HTTPS            ListenerStatus
+	Paused           bool
+	CertificateReady bool
+	ManagedSuffix    string
+}
+
+func NetworkRuntimeStatusFromHealth(health NetworkRuntimeHealth) NetworkRuntimeStatus {
 	return NetworkRuntimeStatus{
 		DNS: DNSStatus{Healthy: health.DNS.Bound, ManagedSuffix: health.ManagedSuffix},
 		HTTP: ListenerStatus{Enabled: health.HTTP.Enabled, Bound: health.HTTP.Bound, BindAddress: health.HTTP.BindAddress, LastError: health.HTTP.LastError},

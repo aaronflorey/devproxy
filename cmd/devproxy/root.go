@@ -34,7 +34,10 @@ func NewRootCommand() *cobra.Command {
 
 	cmd.PersistentFlags().StringVar(&configPath, "config", "", "path to config file")
 
-	cmd.AddCommand(newConfigCommand())
+	registerCommands(cmd,
+		newConfigCommand,
+		newDaemonCommand,
+	)
 
 	return cmd
 }

@@ -63,7 +63,7 @@ func TestAdminAPIUsesSharedReadModelsAndSerializesJSON(t *testing.T) {
 			},
 			Warnings: []routing.Warning{{Code: "W1", Message: "warning"}},
 		},
-		Status: admin.BuildStatus(routing.Snapshot{Version: "v1", Routes: map[string]routing.Route{"api.acme.test": {Hostname: "api.acme.test"}}}, admin.WatcherHealth{Connected: true}, time.Now().UTC(), admin.NetworkRuntimeStatus{DNS: admin.DNSStatus{Healthy: true, ManagedSuffix: "test"}}),
+		Status: admin.StatusView{SnapshotVersion: "v1", LastSync: time.Now().UTC(), DNS: admin.DNSStatus{Healthy: true, ManagedSuffix: "test"}},
 		Doctor: admin.BuildDoctor(routing.Snapshot{Warnings: []routing.Warning{{Code: "W1", Message: "warning"}}}, network),
 		Logs:   admin.BuildSessionEvents(routing.Snapshot{Warnings: []routing.Warning{{Message: "warning"}}}),
 	}
