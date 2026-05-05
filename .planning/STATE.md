@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 2 planned
-last_updated: "2026-05-05T11:41:05.019Z"
+stopped_at: Completed 02-local-dns-proxy-and-https-serving-04-PLAN.md
+last_updated: "2026-05-05T21:49:35.243Z"
 last_activity: 2026-05-05
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 10
-  completed_plans: 8
-  percent: 80
+  completed_plans: 9
+  percent: 90
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-05-05)
 ## Current Position
 
 Phase: 02 (local-dns-proxy-and-https-serving) — EXECUTING
-Plan: 4 of 5
+Plan: 5 of 5
 Status: Ready to execute
 Last activity: 2026-05-05
 
-Progress: [████████░░] 80%
+Progress: [█████████░] 90%
 
 ## Performance Metrics
 
@@ -54,6 +54,7 @@ Progress: [████████░░] 80%
 | Phase 02 P01 | 1 min | 2 tasks | 5 files |
 | Phase 02 P02 | 6 min | 2 tasks | 5 files |
 | Phase 02 P03 | 2 min | 2 tasks | 4 files |
+| Phase 02 P04 | 1 min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -71,6 +72,9 @@ Recent decisions affecting current work:
 - [Phase 02]: Hostname classification reads routing snapshots for managed/no-route detection — Lets HTTP/HTTPS listeners reuse one lookup path for active and missing routes.
 - [Phase 02]: Claim-or-bypass HTTP handler for managed hosts — Prevents unmanaged host interception while preserving friendly local responses for managed suffix traffic.
 - [Phase 02]: Proxy targets derive from reconciled upstream metadata — Mitigates host-header tampering risk and keeps request forwarding aligned with routing snapshot decisions.
+- [Phase 02]: Certificate inventory derives SAN planning from winning route served-hostname snapshots only.
+- [Phase 02]: Project certificates reuse wildcard coverage only for one-label descendants; deeper hostnames trigger reissue planning.
+- [Phase 02]: mkcert issuance failures surface explicitly (including missing binary) to fail fast for HTTPS readiness.
 
 ### Pending Todos
 
@@ -90,6 +94,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-05-05T11:40:32.389Z
-Stopped at: Phase 2 planned
+Last session: 2026-05-05T21:49:35.225Z
+Stopped at: Completed 02-local-dns-proxy-and-https-serving-04-PLAN.md
 Resume file: None
