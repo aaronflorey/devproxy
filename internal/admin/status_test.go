@@ -4,14 +4,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mochaka/devproxy/internal/daemon"
 	"github.com/mochaka/devproxy/internal/routing"
 )
 
 func TestStatusIncludesIndependentNetworkAndCertificateHealth(t *testing.T) {
 	now := time.Now().UTC()
 	snapshot := routing.Snapshot{Version: "v1", CreatedAt: now, Routes: map[string]routing.Route{"api.acme.test": {Hostname: "api.acme.test"}}}
-	watcher := daemon.WatcherHealth{Connected: true}
+	watcher := WatcherHealth{Connected: true}
 
 	status := BuildStatus(snapshot, watcher, now, NetworkRuntimeStatus{
 		DNS: DNSStatus{Healthy: true, ManagedSuffix: "test"},
