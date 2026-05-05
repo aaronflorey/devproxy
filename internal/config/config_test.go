@@ -13,6 +13,14 @@ func TestDefaultConfig(t *testing.T) {
 	assertStringSliceEqual(t, cfg.IgnoredServices, []string{"mysql", "mariadb", "postgres", "redis", "memcached", "meilisearch", "selenium"})
 	assertIntSliceEqual(t, cfg.IgnoredPorts, []int{3306, 5432, 6379, 9200, 11211})
 	assertIntSliceEqual(t, cfg.PortPreferenceOrder, []int{443, 8443, 80, 8080, 8000, 3000, 5173, 8025})
+
+	if cfg.Serving.ManagedSuffix != "test" {
+		t.Fatalf("expected managed suffix test, got %q", cfg.Serving.ManagedSuffix)
+	}
+
+	if cfg.Serving.RedirectHTTPToHTTPS {
+		t.Fatalf("expected redirect disabled by default")
+	}
 }
 
 func assertStringSliceEqual(t *testing.T, got, want []string) {
