@@ -13,7 +13,7 @@ This roadmap delivers devproxy in four coarse phases that follow dependency orde
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [ ] **Phase 1: Discovery, Domains, and Conflict Policy** - Compute reliable route intent from running Compose containers and overrides.
-- [ ] **Phase 2: Local DNS, Proxy, and HTTPS Serving** - Make mapped domains resolve and serve HTTP/HTTPS traffic locally.
+- [x] **Phase 2: Local DNS, Proxy, and HTTPS Serving** - Make mapped domains resolve and serve HTTP/HTTPS traffic locally. (completed 2026-05-05)
 - [ ] **Phase 3: Install, Daemon Lifecycle, and Diagnostics** - Make devproxy installable, operable, and debuggable on macOS.
 - [ ] **Phase 4: Menu Bar and Dashboard UX** - Expose daemon health and route controls through macOS UI surfaces.
 
@@ -103,6 +103,6 @@ Phases execute in numeric order: 2 → 2.1 → 2.2 → 3 → 3.1 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Discovery, Domains, and Conflict Policy | 0/5 | Planned | - |
-| 2. Local DNS, Proxy, and HTTPS Serving | 4/5 | In Progress|  |
+| 2. Local DNS, Proxy, and HTTPS Serving | 5/5 | Complete   | 2026-05-05 |
 | 3. Install, Daemon Lifecycle, and Diagnostics | 0/TBD | Not started | - |
 | 4. Menu Bar and Dashboard UX | 0/TBD | Not started | - |
