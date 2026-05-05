@@ -23,10 +23,13 @@ type Candidate struct {
 type Route struct {
 	Hostname string
 	Domains  []string
+	ServedHostnames []string
 	Upstream Upstream
 	Winner   Candidate
 	Losers   []Candidate
 	Priority int
+	HTTPSRedirect bool
+	HTTPSOnly bool
 	Provenance RouteProvenance
 }
 

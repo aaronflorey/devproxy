@@ -31,6 +31,7 @@ type Reconciler struct {
 	opts     ReconcilerOptions
 	snapshot routing.Snapshot
 	lastSync time.Time
+	routingPaused bool
 }
 
 func NewReconciler(opts ReconcilerOptions) *Reconciler {
@@ -43,7 +44,9 @@ func (r *Reconciler) RebuildSnapshot(containers []ContainerState) error {
 
 	for _, c := range containers {
 		candidate := discovery.BuildCandidateBase(discovery.Container{ID: c.ID, Name: c.Name, Labels: c.Labels})
-		selected, source, ok := discovery.SelectPublishedPort(c.Ports, discovery.RouteOptions{}, 0)
+		routeOpts, warningsWithLabels := discovery.ApplyLabelFields(discovery.RouteOptions{}, discovery.Container{ID: c.ID, Name: c.Name, Labels: c.Labels}, warnings)
+		warnings = warningsWithLabels
+		selected, source, ok := discovery.SelectPublishedPort(c.Ports, routeOpts, 0)
 		if !ok {
 			continue
 		}
@@ -52,8 +55,12 @@ func (r *Reconciler) RebuildSnapshot(containers []ContainerState) error {
 		}
 		domains, domainWarnings := routing.GenerateDomains(candidate.Project, candidate.Service, routing.RoutePreferences{}, routing.RouteOptions{Suffix: r.opts.Suffix, RootServices: r.opts.RootServices})
 		warnings = append(warnings, domainWarnings...)
+		scheme := "http"
+		if routeOpts.LabelScheme != nil {
+			scheme = *routeOpts.LabelScheme
+		}
 		for _, domain := range domains {
-			routes = append(routes, routing.Route{Hostname: domain, Domains: domains, Winner: candidate, Upstream: routing.Upstream{Host: "127.0.0.1", Port: selected.HostPort, Scheme: "http"}, Priority: 0, Provenance: routing.RouteProvenance{PortSource: source}})
+			routes = append(routes, routing.Route{Hostname: domain, Domains: domains, ServedHostnames: domains, Winner: candidate, Upstream: routing.Upstream{Host: "127.0.0.1", Port: selected.HostPort, Scheme: scheme}, Priority: 0, HTTPSRedirect: false, HTTPSOnly: false, Provenance: routing.RouteProvenance{PortSource: source}})
 		}
 	}
 
@@ -66,6 +73,18 @@ func (r *Reconciler) RebuildSnapshot(containers []ContainerState) error {
 	r.mu.Unlock()
 
 	return nil
+}
+
+func (r *Reconciler) SetRoutingPaused(paused bool) {
+	r.mu.Lock()
+	r.routingPaused = paused
+	r.mu.Unlock()
+}
+
+func (r *Reconciler) IsRoutingPaused() bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.routingPaused
 }
 
 func (r *Reconciler) Snapshot() routing.Snapshot {
