@@ -103,6 +103,6 @@ Phases execute in numeric order: 2 → 2.1 → 2.2 → 3 → 3.1 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Discovery, Domains, and Conflict Policy | 0/5 | Planned | - |
-| 2. Local DNS, Proxy, and HTTPS Serving | 0/5 | Planned | - |
+| 2. Local DNS, Proxy, and HTTPS Serving | 3/5 | In Progress|  |
 | 3. Install, Daemon Lifecycle, and Diagnostics | 0/TBD | Not started | - |
 | 4. Menu Bar and Dashboard UX | 0/TBD | Not started | - |
