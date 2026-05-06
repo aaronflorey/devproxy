@@ -134,3 +134,40 @@ func TestUninstallTreatsMissingServiceStateAsNonFatal(t *testing.T) {
 		t.Fatalf("expected uninstall to continue to resolver removal")
 	}
 }
+
+func TestUninstallContinuesAfterObservedBootoutExitFiveWrapper(t *testing.T) {
+	t.Parallel()
+
+	var calls []string
+	u := NewUninstaller(UninstallDependencies{
+		CurrentEUID: func() int { return 0 },
+		StopDaemonService: func(context.Context, LaunchdServiceConfig) error {
+			return errors.New("launchctl bootout system /Library/LaunchDaemons/com.devproxy.daemon.plist failed: exit status 5: Boot-out failed: 5: Input/output error")
+		},
+		UninstallDaemonService: func(context.Context, LaunchdServiceConfig) error {
+			calls = append(calls, "uninstall-daemon")
+			return nil
+		},
+		RemoveResolver: func(context.Context, ResolverConfig) error {
+			calls = append(calls, "remove-resolver")
+			return nil
+		},
+		RemoveState: func(context.Context, InstallPaths) error {
+			calls = append(calls, "remove-state")
+			return nil
+		},
+	})
+
+	err := u.Uninstall(context.Background(), UninstallOptions{
+		Suffix:  "test",
+		Cleanup: CleanupScope{State: true},
+	})
+	if err != nil {
+		t.Fatalf("expected uninstall to continue for observed wrapper, got %v", err)
+	}
+
+	joined := strings.Join(calls, ",")
+	if joined != "uninstall-daemon,remove-resolver,remove-state" {
+		t.Fatalf("expected uninstall to continue through resolver and selected cleanup, got %q", joined)
+	}
+}
