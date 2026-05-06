@@ -88,18 +88,18 @@ Plans:
 - [x] 03-01-PLAN.md — Build the daemon-owned admin socket API and fail-fast foreground daemon startup path.
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 03-02-PLAN.md — Add `status`, `routes`, `refresh`, and `logs` as thin clients of the daemon control plane.
-- [ ] 03-03-PLAN.md — Implement macOS install orchestration for paths, resolver wiring, launchd services, and optional menu bar auto-start.
+- [x] 03-02-PLAN.md — Add `status`, `routes`, `refresh`, and `logs` as thin clients of the daemon control plane.
+- [x] 03-03-PLAN.md — Implement macOS install orchestration for paths, resolver wiring, launchd services, and optional menu bar auto-start.
 
 **Wave 3** *(blocked on Waves 1-2 completion as declared by plan dependencies)*
-- [ ] 03-04-PLAN.md — Add doctor checks for live macOS/runtime health plus selective uninstall cleanup.
+- [x] 03-04-PLAN.md — Add doctor checks for live macOS/runtime health plus selective uninstall cleanup.
 
 **Wave 4** *(gap closure after verification/UAT)*
-- [ ] 03-05-PLAN.md — Add explicit root-privilege lifecycle preflights and idempotent launchd teardown for install/uninstall.
-- [ ] 03-06-PLAN.md — Correct doctor managed-host probing and blocked-runtime diagnostics.
+- [x] 03-05-PLAN.md — Add explicit root-privilege lifecycle preflights and idempotent launchd teardown for install/uninstall.
+- [x] 03-06-PLAN.md — Correct doctor managed-host probing and blocked-runtime diagnostics.
 
 **Wave 5** *(gap closure after re-verification)*
-- [ ] 03-07-PLAN.md — Harden uninstall bootout missing-state handling so scoped cleanup survives the macOS `launchctl bootout ... exit status 5` path.
+- [x] 03-07-PLAN.md — Harden uninstall bootout missing-state handling so scoped cleanup survives the macOS `launchctl bootout ... exit status 5` path.
 
 ### Phase 4: Menu Bar and Dashboard UX
 **Goal**: Developers can monitor devproxy and perform core control actions from the menu bar and local dashboard.
