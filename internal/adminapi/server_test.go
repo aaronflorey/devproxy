@@ -8,7 +8,9 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/user"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -45,8 +47,115 @@ func TestAdminAPIRemovesStaleSocketBeforeBind(t *testing.T) {
 		t.Fatalf("expected unix socket at %q, got mode %s", socketPath, info.Mode())
 	}
 
-	if info.Mode().Perm() != 0o600 {
-		t.Fatalf("expected socket permissions 0600, got %o", info.Mode().Perm())
+	if info.Mode().Perm() != 0o660 {
+		t.Fatalf("expected socket permissions 0660, got %o", info.Mode().Perm())
+	}
+}
+
+func TestSetAdminSocketAccess_DarwinLookupAndChownBestEffort(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "admin.sock")
+	if err := os.WriteFile(path, []byte("socket-marker"), 0o600); err != nil {
+		t.Fatalf("write marker: %v", err)
+	}
+
+	origLookupGroup := lookupGroup
+	origChown := osChown
+	t.Cleanup(func() {
+		lookupGroup = origLookupGroup
+		osChown = origChown
+	})
+
+	lookupCalled := false
+	chownCalled := false
+
+	lookupGroup = func(name string) (*user.Group, error) {
+		lookupCalled = true
+		if name != "admin" {
+			t.Fatalf("expected admin group lookup, got %q", name)
+		}
+		return &user.Group{Gid: "80"}, nil
+	}
+	osChown = func(name string, uid, gid int) error {
+		chownCalled = true
+		if name != path {
+			t.Fatalf("expected chown path %q, got %q", path, name)
+		}
+		if uid != -1 || gid != 80 {
+			t.Fatalf("expected chown uid=-1 gid=80, got uid=%d gid=%d", uid, gid)
+		}
+		return errors.New("simulated chown failure")
+	}
+
+	if err := setAdminSocketAccess(path); err != nil {
+		t.Fatalf("set admin socket access should succeed despite best-effort chown: %v", err)
+	}
+
+	if runtime.GOOS == "darwin" {
+		if !lookupCalled {
+			t.Fatalf("expected group lookup on darwin")
+		}
+		if !chownCalled {
+			t.Fatalf("expected chown attempt on darwin")
+		}
+	} else {
+		if lookupCalled || chownCalled {
+			t.Fatalf("expected no lookup/chown outside darwin")
+		}
+	}
+
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat marker: %v", err)
+	}
+	if info.Mode().Perm() != 0o660 {
+		t.Fatalf("expected mode 0660, got %o", info.Mode().Perm())
+	}
+}
+
+func TestSetAdminSocketAccess_DarwinLookupUnavailableFallsBack(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "admin.sock")
+	if err := os.WriteFile(path, []byte("socket-marker"), 0o600); err != nil {
+		t.Fatalf("write marker: %v", err)
+	}
+
+	origLookupGroup := lookupGroup
+	origChown := osChown
+	t.Cleanup(func() {
+		lookupGroup = origLookupGroup
+		osChown = origChown
+	})
+
+	lookupCalled := false
+	chownCalled := false
+
+	lookupGroup = func(name string) (*user.Group, error) {
+		lookupCalled = true
+		return nil, errors.New("group lookup unavailable")
+	}
+	osChown = func(name string, uid, gid int) error {
+		chownCalled = true
+		return nil
+	}
+
+	if err := setAdminSocketAccess(path); err != nil {
+		t.Fatalf("set admin socket access with lookup fallback: %v", err)
+	}
+
+	if runtime.GOOS == "darwin" {
+		if !lookupCalled {
+			t.Fatalf("expected lookup attempt on darwin")
+		}
+		if chownCalled {
+			t.Fatalf("did not expect chown when lookup fails")
+		}
+	}
+
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat marker: %v", err)
+	}
+	if info.Mode().Perm() != 0o660 {
+		t.Fatalf("expected mode 0660, got %o", info.Mode().Perm())
 	}
 }
 
