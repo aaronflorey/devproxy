@@ -2,7 +2,9 @@ package doctor
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os/exec"
@@ -33,8 +35,8 @@ type Dependencies struct {
 	CheckDocker        func(context.Context) error
 	CheckLaunchd       func(context.Context) error
 	CheckAdminSocket   func(context.Context) error
-	CheckProxyHTTP     func(context.Context) error
-	CheckProxyHTTPS    func(context.Context) error
+	CheckProxyHTTP     func(context.Context, string) error
+	CheckProxyHTTPS    func(context.Context, string) error
 	CheckMKCert        func(context.Context) error
 	CheckLocalCA       func(context.Context) error
 	ReadResolverState  func(context.Context) (ResolverState, error)
@@ -111,9 +113,33 @@ func (c *Checker) Run(ctx context.Context, exampleHost string) Report {
 		)
 	}
 
+	managedHost := strings.TrimSpace(exampleHost)
+	if managedHost == "" {
+		managedHost = "example.test"
+	}
+	if resolverErr != nil || !resolverState.ActiveResolver || healthErr != nil {
+		reason := "unknown"
+		switch {
+		case healthErr != nil:
+			reason = healthErr.Error()
+		case resolverErr != nil:
+			reason = resolverErr.Error()
+		default:
+			reason = "resolver inactive"
+		}
+		blocked := fmt.Sprintf("cannot verify managed proxy reachability without daemon status: %s", reason)
+		checks = append(checks,
+			CheckResult{Name: "proxy_http", OK: false, Message: blocked},
+			CheckResult{Name: "proxy_https", OK: false, Message: blocked},
+		)
+	} else {
+		checks = append(checks,
+			probeWithHost("proxy_http", c.deps.CheckProxyHTTP, ctx, managedHost),
+			probeWithHost("proxy_https", c.deps.CheckProxyHTTPS, ctx, managedHost),
+		)
+	}
+
 	checks = append(checks,
-		probe("proxy_http", c.deps.CheckProxyHTTP, ctx),
-		probe("proxy_https", c.deps.CheckProxyHTTPS, ctx),
 		probe("mkcert", c.deps.CheckMKCert, ctx),
 		probe("local_ca", c.deps.CheckLocalCA, ctx),
 	)
@@ -128,6 +154,13 @@ func (c *Checker) Run(ctx context.Context, exampleHost string) Report {
 	}
 
 	return Report{Checks: checks}
+}
+
+func probeWithHost(name string, fn func(context.Context, string) error, ctx context.Context, host string) CheckResult {
+	if err := fn(ctx, host); err != nil {
+		return CheckResult{Name: name, OK: false, Message: err.Error()}
+	}
+	return CheckResult{Name: name, OK: true, Message: "ok"}
 }
 
 func probe(name string, fn func(context.Context) error, ctx context.Context) CheckResult {
@@ -181,20 +214,33 @@ func checkAdminSocket(ctx context.Context) error {
 	return nil
 }
 
-func checkProxyHTTP(context.Context) error {
-	resp, err := http.Get("http://127.0.0.1")
+func checkProxyHTTP(_ context.Context, host string) error {
+	client := &http.Client{Transport: &http.Transport{DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
+		d := &net.Dialer{}
+		return d.DialContext(ctx, network, "127.0.0.1:80")
+	}}}
+	resp, err := client.Get("http://" + host)
 	if err != nil {
 		return fmt.Errorf("http proxy unreachable: %w", err)
 	}
+	_, _ = io.Copy(io.Discard, resp.Body)
 	_ = resp.Body.Close()
 	return nil
 }
 
-func checkProxyHTTPS(context.Context) error {
-	resp, err := http.Get("https://127.0.0.1")
+func checkProxyHTTPS(_ context.Context, host string) error {
+	client := &http.Client{Transport: &http.Transport{
+		DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
+			d := &net.Dialer{}
+			return d.DialContext(ctx, network, "127.0.0.1:443")
+		},
+		TLSClientConfig: &tls.Config{ServerName: host},
+	}}
+	resp, err := client.Get("https://" + host)
 	if err != nil {
 		return fmt.Errorf("https proxy unreachable: %w", err)
 	}
+	_, _ = io.Copy(io.Discard, resp.Body)
 	_ = resp.Body.Close()
 	return nil
 }
