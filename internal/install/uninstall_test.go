@@ -2,6 +2,7 @@ package install
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 )
@@ -11,6 +12,7 @@ func TestUninstallHonorsIndependentCleanupChoices(t *testing.T) {
 
 	var removed []string
 	u := NewUninstaller(UninstallDependencies{
+		CurrentEUID:            func() int { return 0 },
 		StopDaemonService:      func(context.Context, LaunchdServiceConfig) error { return nil },
 		UninstallDaemonService: func(context.Context, LaunchdServiceConfig) error { return nil },
 		RemoveResolver:         func(context.Context, ResolverConfig) error { return nil },
@@ -44,6 +46,7 @@ func TestUninstallAlwaysStopsAndUnregistersBeforeOptionalCleanup(t *testing.T) {
 
 	var steps []string
 	u := NewUninstaller(UninstallDependencies{
+		CurrentEUID:       func() int { return 0 },
 		StopDaemonService: func(context.Context, LaunchdServiceConfig) error { steps = append(steps, "stop-daemon"); return nil },
 		UninstallDaemonService: func(context.Context, LaunchdServiceConfig) error {
 			steps = append(steps, "uninstall-daemon")
@@ -78,5 +81,56 @@ func TestUninstallAlwaysStopsAndUnregistersBeforeOptionalCleanup(t *testing.T) {
 	cleanupIndex := strings.Index(joined, "remove-config")
 	if resolverIndex == -1 || cleanupIndex == -1 || resolverIndex > cleanupIndex {
 		t.Fatalf("expected resolver removal before optional cleanup, got %q", joined)
+	}
+}
+
+func TestUninstallRequiresRootBeforeTeardown(t *testing.T) {
+	t.Parallel()
+
+	started := false
+	u := NewUninstaller(UninstallDependencies{
+		CurrentEUID: func() int { return 501 },
+		StopDaemonService: func(context.Context, LaunchdServiceConfig) error {
+			started = true
+			return nil
+		},
+	})
+
+	err := u.Uninstall(context.Background(), UninstallOptions{Suffix: "test"})
+	if err == nil {
+		t.Fatalf("expected root preflight error")
+	}
+	if !strings.Contains(err.Error(), "devproxy uninstall requires root privileges; rerun with sudo") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if started {
+		t.Fatalf("expected no teardown before root preflight")
+	}
+}
+
+func TestUninstallTreatsMissingServiceStateAsNonFatal(t *testing.T) {
+	t.Parallel()
+
+	var removedResolver bool
+	u := NewUninstaller(UninstallDependencies{
+		CurrentEUID: func() int { return 0 },
+		StopDaemonService: func(context.Context, LaunchdServiceConfig) error {
+			return errors.New("launchctl bootout failed: Could not find service")
+		},
+		UninstallDaemonService:  func(context.Context, LaunchdServiceConfig) error { return errors.New("no such file") },
+		StopMenubarService:      func(context.Context, LaunchdServiceConfig) error { return errors.New("service already unloaded") },
+		UninstallMenubarService: func(context.Context, LaunchdServiceConfig) error { return errors.New("No such process") },
+		RemoveResolver: func(context.Context, ResolverConfig) error {
+			removedResolver = true
+			return nil
+		},
+	})
+
+	err := u.Uninstall(context.Background(), UninstallOptions{Suffix: "test", WithMenubar: true})
+	if err != nil {
+		t.Fatalf("expected missing service state to be non-fatal, got %v", err)
+	}
+	if !removedResolver {
+		t.Fatalf("expected uninstall to continue to resolver removal")
 	}
 }
