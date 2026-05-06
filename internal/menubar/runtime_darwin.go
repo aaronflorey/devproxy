@@ -10,6 +10,58 @@ import (
 	"github.com/getlantern/systray"
 )
 
+type routeSlot struct {
+	item    *systray.MenuItem
+	host    string
+	openURL string
+}
+
+type runtimeState struct {
+	paused         bool
+	startupEnabled bool
+}
+
+type routeSlotAssignment struct {
+	visible bool
+	host    string
+	openURL string
+}
+
+func computeRouteSlotAssignments(slotCount int, routes []routeMenuItem) []routeSlotAssignment {
+	if slotCount < len(routes) {
+		slotCount = len(routes)
+	}
+	assignments := make([]routeSlotAssignment, slotCount)
+	for i := 0; i < slotCount; i++ {
+		if i >= len(routes) {
+			continue
+		}
+		assignments[i] = routeSlotAssignment{visible: true, host: routes[i].Hostname, openURL: routes[i].OpenURL}
+	}
+	return assignments
+}
+
+func syncRouteSlots(slots []routeSlot, routes []routeMenuItem, create func() *systray.MenuItem, bindClick func(*routeSlot)) []routeSlot {
+	assignments := computeRouteSlotAssignments(len(slots), routes)
+	for len(slots) < len(assignments) {
+		slots = append(slots, routeSlot{item: create()})
+		bindClick(&slots[len(slots)-1])
+	}
+	for i, assignment := range assignments {
+		if assignment.visible {
+			slots[i].host = assignment.host
+			slots[i].openURL = assignment.openURL
+			slots[i].item.SetTitle(assignment.host)
+			slots[i].item.Show()
+			continue
+		}
+		slots[i].host = ""
+		slots[i].openURL = ""
+		slots[i].item.Hide()
+	}
+	return slots
+}
+
 func Run(ctx context.Context, client adminClient, op opener) error {
 	if client == nil {
 		return fmt.Errorf("menubar admin client is required")
@@ -29,6 +81,8 @@ func Run(ctx context.Context, client adminClient, op opener) error {
 	var doctorItem *systray.MenuItem
 	var refreshItem *systray.MenuItem
 	var startupItem *systray.MenuItem
+	var routeSlots []routeSlot
+	var routeClickCh chan string
 
 	onReady := func() {
 		systray.SetTemplateIcon(trayIcon, trayIcon)
@@ -41,16 +95,43 @@ func Run(ctx context.Context, client adminClient, op opener) error {
 		logsItem = systray.AddMenuItem("Open Logs", "Open local dashboard logs")
 		doctorItem = systray.AddMenuItem("Run Doctor", "Run daemon doctor check")
 		startupItem = systray.AddMenuItem("Start at Login (menubar)", "Toggle menubar startup role")
+		systray.AddSeparator()
+		routeSlotFactory := func() *systray.MenuItem {
+			item := systray.AddMenuItem("", "Open active route")
+			item.Hide()
+			return item
+		}
+		routeClickCh = make(chan string)
+		routeClickBinder := func(slot *routeSlot) {
+			go func(s *routeSlot) {
+				for range s.item.ClickedCh {
+					routeClickCh <- s.openURL
+				}
+			}(slot)
+		}
+		stateInfo, err := refreshMenu(context.Background(), client, statusItem, pauseItem, startupItem, &routeSlots, routeSlotFactory, routeClickBinder)
+		if err != nil {
+			state := offlineMenuState(err)
+			statusItem.SetTitle(state.HealthLine + " — " + state.ErrorLine)
+			pauseItem.SetTitle("Pause Routing")
+			stateInfo = runtimeState{}
+		}
 		quitItem := systray.AddMenuItem("Quit", "Quit DevProxy menu bar")
 		close(ready)
 
 		go func() {
+			paused := stateInfo.paused
+			startupEnabled := stateInfo.startupEnabled
 			for {
 				select {
+				case routeURL := <-routeClickCh:
+					if routeURL != "" {
+						_ = d.openRoute(context.Background(), routeURL)
+					}
 				case <-refreshItem.ClickedCh:
 					_ = d.refresh(context.Background())
 				case <-pauseItem.ClickedCh:
-					_ = d.togglePause(context.Background(), pauseItem.Title() == "Pause Routing")
+					_ = d.togglePause(context.Background(), !paused)
 				case <-dashboardItem.ClickedCh:
 					_ = d.openDashboard(context.Background())
 				case <-logsItem.ClickedCh:
@@ -58,8 +139,7 @@ func Run(ctx context.Context, client adminClient, op opener) error {
 				case <-doctorItem.ClickedCh:
 					_ = d.runDoctor(context.Background())
 				case <-startupItem.ClickedCh:
-					enabled := startupItem.Title() == "Enable Start at Login (menubar)"
-					_ = d.toggleStartup(context.Background(), enabled)
+					_ = d.toggleStartup(context.Background(), !startupEnabled)
 				case <-quitItem.ClickedCh:
 					systray.Quit()
 					return
@@ -74,10 +154,13 @@ func Run(ctx context.Context, client adminClient, op opener) error {
 			ticker := time.NewTicker(3 * time.Second)
 			defer ticker.Stop()
 			for {
-				if err := refreshMenu(context.Background(), client, statusItem, pauseItem, startupItem); err != nil {
+				stateInfo, err := refreshMenu(context.Background(), client, statusItem, pauseItem, startupItem, &routeSlots, routeSlotFactory, routeClickBinder)
+				if err != nil {
 					state := offlineMenuState(err)
 					statusItem.SetTitle(state.HealthLine + " — " + state.ErrorLine)
 					pauseItem.SetTitle("Pause Routing")
+				} else {
+					_ = stateInfo
 				}
 				select {
 				case <-ticker.C:
@@ -105,20 +188,21 @@ func Run(ctx context.Context, client adminClient, op opener) error {
 	}
 }
 
-func refreshMenu(ctx context.Context, client adminClient, statusItem, pauseItem, startupItem *systray.MenuItem) error {
+func refreshMenu(ctx context.Context, client adminClient, statusItem, pauseItem, startupItem *systray.MenuItem, routeSlots *[]routeSlot, create func() *systray.MenuItem, bindClick func(*routeSlot)) (runtimeState, error) {
 	status, err := client.Status(ctx)
 	if err != nil {
-		return err
+		return runtimeState{}, err
 	}
 	routes, err := client.Routes(ctx)
 	if err != nil {
-		return err
+		return runtimeState{}, err
 	}
 	startup, err := client.StartupStatus(ctx)
 	if err != nil {
-		return err
+		return runtimeState{}, err
 	}
 	state := buildMenuState(status, routes, startup.Roles)
+	*routeSlots = syncRouteSlots(*routeSlots, state.RouteItems, create, bindClick)
 	statusItem.SetTitle(fmt.Sprintf("%s | %s | %s", state.HealthLine, state.PauseLine, state.ActiveRoutesLine))
 	if status.Paused {
 		pauseItem.SetTitle("Resume Routing")
@@ -137,5 +221,5 @@ func refreshMenu(ctx context.Context, client adminClient, statusItem, pauseItem,
 	} else {
 		startupItem.SetTitle("Enable Start at Login (menubar)")
 	}
-	return nil
+	return runtimeState{paused: status.Paused, startupEnabled: startupEnabled}, nil
 }
