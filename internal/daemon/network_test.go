@@ -17,6 +17,7 @@ import (
 
 	"github.com/mochaka/devproxy/internal/certs"
 	"github.com/mochaka/devproxy/internal/routing"
+	mdns "github.com/miekg/dns"
 )
 
 func TestNewNetworkRuntimePreparesCertificates(t *testing.T) {
@@ -112,11 +113,12 @@ func TestNetworkRuntimeCertificateReadyFromPreparedInventory(t *testing.T) {
 	}
 }
 
-func TestNetworkRuntimeStartBindsHTTPAndHTTPS(t *testing.T) {
+func TestNetworkRuntimeStartBindsHTTPHTTPSAndDNS(t *testing.T) {
 	runtime, err := NewNetworkRuntime(NetworkRuntimeConfig{
 		ManagedSuffix: "test",
 		Snapshot:      staticDaemonSnapshot(routing.Snapshot{Routes: map[string]routing.Route{}}),
 		Certificates:  map[string]tls.Certificate{"acme.test": mustInlineTestCertificate(t, []string{"acme.test", "*.acme.test"})},
+		DNSAddress:    freeLoopbackUDPAddress(t),
 		HTTPAddress:   freeLoopbackAddress(t),
 		HTTPSAddress:  freeLoopbackAddress(t),
 	})
@@ -140,8 +142,20 @@ func TestNetworkRuntimeStartBindsHTTPAndHTTPS(t *testing.T) {
 	if !health.HTTPS.Bound {
 		t.Fatalf("expected https listener to bind")
 	}
+	if !health.DNS.Bound {
+		t.Fatalf("expected dns listener to bind")
+	}
 	if health.HTTP.BindAddress == "127.0.0.1:80" || health.HTTPS.BindAddress == "127.0.0.1:443" {
 		t.Fatalf("expected test override addresses to be used, got http=%q https=%q", health.HTTP.BindAddress, health.HTTPS.BindAddress)
+	}
+	query := new(mdns.Msg)
+	query.SetQuestion(mdns.Fqdn("example.test"), mdns.TypeA)
+	resp, _, err := (&mdns.Client{}).Exchange(query, health.DNS.BindAddress)
+	if err != nil {
+		t.Fatalf("dns query failed: %v", err)
+	}
+	if got := parseARecord(resp); got != "127.0.0.1" {
+		t.Fatalf("expected managed suffix to resolve loopback, got %q", got)
 	}
 
 	defaults, err := NewNetworkRuntime(NetworkRuntimeConfig{ManagedSuffix: "test"})
@@ -157,6 +171,20 @@ func TestNetworkRuntimeStartBindsHTTPAndHTTPS(t *testing.T) {
 	}
 }
 
+func parseARecord(resp *mdns.Msg) string {
+	if resp == nil {
+		return ""
+	}
+	for _, answer := range resp.Answer {
+		record, ok := answer.(*mdns.A)
+		if !ok || record.A == nil {
+			continue
+		}
+		return record.A.String()
+	}
+	return ""
+}
+
 func staticDaemonSnapshot(s routing.Snapshot) func() routing.Snapshot {
 	return func() routing.Snapshot { return s }
 }
@@ -170,6 +198,19 @@ func freeLoopbackAddress(t *testing.T) string {
 	addr := listener.Addr().String()
 	if err := listener.Close(); err != nil {
 		t.Fatalf("release reserved loopback port: %v", err)
+	}
+	return addr
+}
+
+func freeLoopbackUDPAddress(t *testing.T) string {
+	t.Helper()
+	conn, err := net.ListenPacket("udp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("reserve loopback udp port: %v", err)
+	}
+	addr := conn.LocalAddr().String()
+	if err := conn.Close(); err != nil {
+		t.Fatalf("release reserved udp port: %v", err)
 	}
 	return addr
 }

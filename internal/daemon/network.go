@@ -10,8 +10,10 @@ import (
 	"sync"
 
 	"github.com/mochaka/devproxy/internal/certs"
+	devproxydns "github.com/mochaka/devproxy/internal/dns"
 	"github.com/mochaka/devproxy/internal/proxy"
 	"github.com/mochaka/devproxy/internal/routing"
+	mdns "github.com/miekg/dns"
 )
 
 type ListenerHealth struct {
@@ -38,6 +40,7 @@ type NetworkRuntimeConfig struct {
 	StoredCertificates   map[string]certs.StoredCertificate
 	CertificateOutputDir string
 	IssueCertificate     func(outputDir string, sans []string) (certs.IssuedCertificate, error)
+	DNSAddress           string
 	HTTPAddress          string
 	HTTPSAddress         string
 }
@@ -45,10 +48,13 @@ type NetworkRuntimeConfig struct {
 type NetworkRuntime struct {
 	mu            sync.RWMutex
 	managedSuffix string
+	readSnapshot  func() routing.Snapshot
 	readPaused    func() bool
 	httpHandler   *proxy.HTTPHandler
 	httpsHandler  *proxy.HTTPSListener
 	health        NetworkRuntimeHealth
+	dnsServer     *mdns.Server
+	dnsPacketConn net.PacketConn
 	httpServer    *http.Server
 	httpsServer   *http.Server
 	httpListener  net.Listener
@@ -81,9 +87,13 @@ func NewNetworkRuntime(cfg NetworkRuntimeConfig) (*NetworkRuntime, error) {
 	if httpsAddress == "" {
 		httpsAddress = "127.0.0.1:443"
 	}
-	runtime := &NetworkRuntime{managedSuffix: cfg.ManagedSuffix, readPaused: paused, httpHandler: httpHandler, httpsHandler: httpsHandler}
+	dnsAddress := cfg.DNSAddress
+	if dnsAddress == "" {
+		dnsAddress = "127.0.0.1:53535"
+	}
+	runtime := &NetworkRuntime{managedSuffix: cfg.ManagedSuffix, readSnapshot: snapshot, readPaused: paused, httpHandler: httpHandler, httpsHandler: httpsHandler}
 	runtime.health = NetworkRuntimeHealth{
-		DNS:              ListenerHealth{Enabled: true, Bound: false, BindAddress: "127.0.0.1:53535"},
+		DNS:              ListenerHealth{Enabled: true, Bound: false, BindAddress: dnsAddress},
 		HTTP:             ListenerHealth{Enabled: true, Bound: false, BindAddress: httpAddress},
 		HTTPS:            ListenerHealth{Enabled: true, Bound: false, BindAddress: httpsAddress},
 		ManagedSuffix:    cfg.ManagedSuffix,
@@ -128,14 +138,27 @@ func (n *NetworkRuntime) SetCertificateReady(ready bool) {
 func (n *NetworkRuntime) Start() error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	if n.httpServer != nil || n.httpsServer != nil {
+	if n.dnsServer != nil || n.httpServer != nil || n.httpsServer != nil {
 		return fmt.Errorf("network runtime already started")
 	}
+
+	dnsPacketConn, err := net.ListenPacket("udp", n.health.DNS.BindAddress)
+	n.health.DNS.Bound = err == nil
+	n.health.DNS.LastError = errorString(err)
+	if err != nil {
+		return err
+	}
+	n.health.DNS.BindAddress = dnsPacketConn.LocalAddr().String()
+	dnsServer := &mdns.Server{PacketConn: dnsPacketConn, Handler: devproxydns.NewServer(n.managedSuffix, n.readSnapshot)}
+	n.dnsPacketConn = dnsPacketConn
+	n.dnsServer = dnsServer
+	go serveDNSServer(dnsServer)
 
 	httpListener, err := net.Listen("tcp", n.health.HTTP.BindAddress)
 	n.health.HTTP.Bound = err == nil
 	n.health.HTTP.LastError = errorString(err)
 	if err != nil {
+		_ = n.stopDNSServerLocked()
 		return err
 	}
 	n.health.HTTP.BindAddress = httpListener.Addr().String()
@@ -145,6 +168,7 @@ func (n *NetworkRuntime) Start() error {
 	n.health.HTTPS.LastError = errorString(err)
 	if err != nil {
 		_ = httpListener.Close()
+		_ = n.stopDNSServerLocked()
 		n.health.HTTP.Bound = false
 		return err
 	}
@@ -165,6 +189,9 @@ func (n *NetworkRuntime) Close() error {
 	defer n.mu.Unlock()
 
 	var errs []error
+	if err := n.stopDNSServerLocked(); err != nil {
+		errs = append(errs, err)
+	}
 	if n.httpServer != nil {
 		err := n.httpServer.Shutdown(context.Background())
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -186,6 +213,20 @@ func (n *NetworkRuntime) Close() error {
 		n.health.HTTPS.LastError = ""
 	}
 	return errors.Join(errs...)
+}
+
+func (n *NetworkRuntime) stopDNSServerLocked() error {
+	if n.dnsServer == nil {
+		n.health.DNS.Bound = false
+		n.health.DNS.LastError = ""
+		return nil
+	}
+	err := n.dnsServer.Shutdown()
+	n.dnsServer = nil
+	n.dnsPacketConn = nil
+	n.health.DNS.Bound = false
+	n.health.DNS.LastError = ""
+	return err
 }
 
 func (n *NetworkRuntime) Health() NetworkRuntimeHealth {
@@ -248,4 +289,11 @@ func serveListener(server *http.Server, listener net.Listener) {
 		return
 	}
 	_ = server.Serve(listener)
+}
+
+func serveDNSServer(server *mdns.Server) {
+	if server == nil {
+		return
+	}
+	_ = server.ActivateAndServe()
 }
