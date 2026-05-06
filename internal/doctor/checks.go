@@ -199,10 +199,20 @@ func checkDocker(context.Context) error {
 
 func checkLaunchd(context.Context) error {
 	cmd := exec.Command("launchctl", "print", "system/com.devproxy.daemon")
-	if out, err := cmd.CombinedOutput(); err != nil {
+	out, err := cmd.CombinedOutput()
+	trimmed := strings.TrimSpace(string(out))
+	if err != nil {
 		return fmt.Errorf("launchctl print system/com.devproxy.daemon failed: %w: %s", err, strings.TrimSpace(string(out)))
 	}
+	if !launchdPrintIndicatesRunning(trimmed) {
+		return fmt.Errorf("launchd daemon not running (state not running). launchctl print system/com.devproxy.daemon output: %s", trimmed)
+	}
 	return nil
+}
+
+func launchdPrintIndicatesRunning(printOutput string) bool {
+	lower := strings.ToLower(printOutput)
+	return strings.Contains(lower, "state = running")
 }
 
 func checkAdminSocket(ctx context.Context) error {

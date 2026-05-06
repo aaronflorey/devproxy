@@ -39,6 +39,8 @@ type LaunchdServiceConfig struct {
 	Arguments []string
 }
 
+const launchdDefaultPath = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+
 func DaemonServiceConfig(paths InstallPaths) LaunchdServiceConfig {
 	return LaunchdServiceConfig{
 		Label:     "com.devproxy.daemon",
@@ -134,9 +136,14 @@ func plistFor(cfg LaunchdServiceConfig) string {
     <true/>
     <key>KeepAlive</key>
     <true/>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>%s</string>
+    </dict>
 </dict>
 </plist>
-`, cfg.Label, cfg.Program, args)
+`, cfg.Label, cfg.Program, args, launchdDefaultPath)
 }
 
 func domainTarget(cfg LaunchdServiceConfig) string {

@@ -205,6 +205,26 @@ func TestDomainTargetUsesAgentUIDWhenProvided(t *testing.T) {
 	}
 }
 
+func TestPlistIncludesEnvironmentPath(t *testing.T) {
+	t.Parallel()
+
+	plist := plistFor(LaunchdServiceConfig{
+		Label:     "com.devproxy.daemon",
+		Program:   "/usr/local/bin/devproxy",
+		Arguments: []string{"daemon"},
+	})
+
+	if !strings.Contains(plist, "<key>EnvironmentVariables</key>") {
+		t.Fatalf("expected launchd plist to include environment variables")
+	}
+	if !strings.Contains(plist, "<key>PATH</key>") {
+		t.Fatalf("expected launchd plist to include PATH environment variable")
+	}
+	if !strings.Contains(plist, launchdDefaultPath) {
+		t.Fatalf("expected launchd plist to include default PATH %q", launchdDefaultPath)
+	}
+}
+
 func makeFakeLaunchctl(t *testing.T, stateFile string, printMissing bool) string {
 	t.Helper()
 	binDir := t.TempDir()
