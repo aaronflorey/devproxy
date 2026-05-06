@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
+status: verifying
 stopped_at: Phase 4 UI-SPEC approved
-last_updated: "2026-05-06T02:34:07.156Z"
+last_updated: "2026-05-06T02:38:20.859Z"
 last_activity: 2026-05-06
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 24
-  completed_plans: 29
+  completed_plans: 30
   percent: 100
 ---
 
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-05-05)
 
 Phase: 04 (menu-bar-and-dashboard-ux) — EXECUTING
 Plan: 4 of 4
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-05-06
 
 Progress: [██████████] 100%
@@ -65,6 +65,7 @@ Progress: [██████████] 100%
 | Phase 04 P01 | 5 min | 2 tasks | 11 files |
 | Phase 04 P02 | 3 min | 2 tasks | 7 files |
 | Phase 04-menu-bar-and-dashboard-ux P03 | 24 min | 2 tasks | 9 files |
+| Phase 04 P04 | 20 min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -108,6 +109,8 @@ Recent decisions affecting current work:
 - [Phase ?]: Refresh endpoint is POST-only at /actions/refresh and redirects with flash status
 - [Phase 04-menu-bar-and-dashboard-ux]: Menubar mutations are routed exclusively through admin API actions. — Keeps daemon as single control plane and avoids UI-side launchctl behavior divergence.
 - [Phase 04-menu-bar-and-dashboard-ux]: Route-open clicks use daemon-provided OpenURL values verbatim. — Prevents UI recomputation drift and preserves D-04 fallback decisions from daemon projection.
+- [Phase 04]: Expose dashboard route fallback reason text when HTTPS readiness degrades — Keeps HTTP fallback behavior explicit and auditable in UI surfaces.
+- [Phase 04]: Auto-approved checkpoint:human-verify for plan 04-04 — workflow.auto_advance=true allows non-blocking human-verify after automated checks pass.
 
 ### Pending Todos
 
@@ -127,6 +130,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-05-06T02:33:48.325Z
+Last session: 2026-05-06T02:38:07.521Z
 Stopped at: Phase 4 UI-SPEC approved
 Resume file: None
