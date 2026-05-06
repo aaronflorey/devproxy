@@ -1,10 +1,11 @@
 ---
 phase: 4
 slug: menu-bar-and-dashboard-ux
-status: draft
+status: approved
 shadcn_initialized: false
 preset: none
 created: 2026-05-06
+reviewed_at: 2026-05-06T00:00:00Z
 ---
 
 # Phase 4 — UI Design Contract
@@ -67,6 +68,18 @@ Accent reserved for: pause/resume primary action, dashboard “Refresh Routes”
 
 ---
 
+## Visual Hierarchy
+
+Primary focal point order for both menu and dashboard views:
+
+1. Daemon health state (healthy/degraded/offline) with current pause state.
+2. Active routes summary and route list/table.
+3. Operator controls (refresh, run doctor, open logs, start-at-login toggle, open dashboard).
+
+In conflict/error conditions, status and blocking errors override route details visually and appear first.
+
+---
+
 ## Copywriting Contract
 
 | Element | Copy |
@@ -90,11 +103,11 @@ Accent reserved for: pause/resume primary action, dashboard “Refresh Routes”
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
+- [x] Dimension 1 Copywriting: PASS
+- [x] Dimension 2 Visuals: FLAG (non-blocking)
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: PASS
+- [x] Dimension 5 Spacing: PASS
+- [x] Dimension 6 Registry Safety: PASS
 
-**Approval:** pending
+**Approval:** approved
