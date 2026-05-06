@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -182,5 +183,126 @@ func TestAdminAPIRefreshReturnsFailurePayloadFromDaemonError(t *testing.T) {
 	}
 	if payload.Error == "" || !strings.Contains(payload.Error, "docker ping failed") {
 		t.Fatalf("expected refresh error payload to expose bootstrap failure, got %+v", payload)
+	}
+}
+
+func TestServerRoutingPauseResumeAndStartupEndpoints_D02_D03(t *testing.T) {
+	server, socketPath := mustStartTestServer(t, StateSnapshot{})
+	t.Cleanup(func() { _ = server.Close(context.Background()) })
+
+	client := unixSocketClient(socketPath)
+
+	t.Run("POST /routing/pause returns explicit paused state", func(t *testing.T) {
+		resp := postJSON(t, client, "http://unix/routing/pause", `{}`)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected 200 from /routing/pause, got %d", resp.StatusCode)
+		}
+		defer resp.Body.Close()
+		var payload RoutingPauseResumeResponse
+		if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode /routing/pause response: %v", err)
+		}
+		if !payload.Paused {
+			t.Fatalf("expected paused=true from /routing/pause, got %+v", payload)
+		}
+	})
+
+	t.Run("POST /routing/resume returns explicit paused=false state", func(t *testing.T) {
+		resp := postJSON(t, client, "http://unix/routing/resume", `{}`)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected 200 from /routing/resume, got %d", resp.StatusCode)
+		}
+		defer resp.Body.Close()
+		var payload RoutingPauseResumeResponse
+		if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode /routing/resume response: %v", err)
+		}
+		if payload.Paused {
+			t.Fatalf("expected paused=false from /routing/resume, got %+v", payload)
+		}
+	})
+
+	t.Run("GET /startup exposes daemon and menubar role entries", func(t *testing.T) {
+		resp, err := client.Get("http://unix/startup")
+		if err != nil {
+			t.Fatalf("get /startup: %v", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected 200 from /startup, got %d", resp.StatusCode)
+		}
+		var payload StartupStatusResponse
+		if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode /startup response: %v", err)
+		}
+		if len(payload.Roles) != 2 {
+			t.Fatalf("expected daemon+menubar role entries, got %+v", payload)
+		}
+		assertStartupRoleContainsFields(t, payload, "daemon")
+		assertStartupRoleContainsFields(t, payload, "menubar")
+	})
+
+	t.Run("POST /startup toggles only requested role", func(t *testing.T) {
+		resp := postJSON(t, client, "http://unix/startup", `{"role":"menubar","enabled":true}`)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected 200 from /startup toggle, got %d", resp.StatusCode)
+		}
+		defer resp.Body.Close()
+		var payload StartupToggleResponse
+		if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode /startup toggle response: %v", err)
+		}
+		if payload.Role != "menubar" || !payload.Enabled {
+			t.Fatalf("expected menubar enabled toggle result, got %+v", payload)
+		}
+		if payload.AffectedRole != "menubar" {
+			t.Fatalf("expected only requested role to be affected, got %+v", payload)
+		}
+	})
+}
+
+func postJSON(t *testing.T, client *http.Client, url, body string) *http.Response {
+	t.Helper()
+	resp, err := client.Post(url, "application/json", strings.NewReader(body))
+	if err != nil {
+		t.Fatalf("post %s: %v", url, err)
+	}
+	return resp
+}
+
+func assertStartupRoleContainsFields(t *testing.T, payload StartupStatusResponse, role string) {
+	t.Helper()
+	for _, item := range payload.Roles {
+		if item.Role != role {
+			continue
+		}
+		if item.Domain == "" || item.Label == "" || item.StatusMessage == "" {
+			t.Fatalf("startup role %q missing required fields: %+v", role, item)
+		}
+		_ = item.Installed
+		_ = item.Running
+		_ = item.Toggleable
+		return
+	}
+	t.Fatalf("role %q not found in payload: %+v", role, payload)
+}
+
+func TestServerRoutingPauseResumeFailureReturnsStructuredError_D02(t *testing.T) {
+	server, socketPath := mustStartTestServer(t, StateSnapshot{})
+	t.Cleanup(func() { _ = server.Close(context.Background()) })
+
+	server.SetRoutingPauseResume(func(context.Context, bool) error {
+		return errors.New("pause/resume unavailable")
+	})
+
+	client := unixSocketClient(socketPath)
+	resp := postJSON(t, client, "http://unix/routing/pause", `{}`)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503 from /routing/pause failure, got %d", resp.StatusCode)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	if !strings.Contains(string(body), "pause/resume unavailable") {
+		t.Fatalf("expected structured pause failure text, got %s", string(body))
 	}
 }

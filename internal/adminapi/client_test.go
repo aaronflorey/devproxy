@@ -174,6 +174,45 @@ func TestClientUsesPostForRefresh(t *testing.T) {
 	}
 }
 
+func TestClientSupportsRoutingPauseResumeAndStartupEndpoints_D01_D02_D03(t *testing.T) {
+	server, socketPath := mustStartTestServer(t, StateSnapshot{})
+	t.Cleanup(func() { _ = server.Close(context.Background()) })
+
+	client := NewClient(socketPath)
+
+	pause, err := client.PauseRouting(context.Background())
+	if err != nil {
+		t.Fatalf("pause routing: %v", err)
+	}
+	if !pause.Paused {
+		t.Fatalf("expected paused=true payload, got %+v", pause)
+	}
+
+	resume, err := client.ResumeRouting(context.Background())
+	if err != nil {
+		t.Fatalf("resume routing: %v", err)
+	}
+	if resume.Paused {
+		t.Fatalf("expected paused=false payload, got %+v", resume)
+	}
+
+	startup, err := client.StartupStatus(context.Background())
+	if err != nil {
+		t.Fatalf("startup status: %v", err)
+	}
+	if len(startup.Roles) < 2 {
+		t.Fatalf("expected daemon and menubar roles, got %+v", startup)
+	}
+
+	toggle, err := client.SetStartupEnabled(context.Background(), StartupToggleRequest{Role: "menubar", Enabled: true})
+	if err != nil {
+		t.Fatalf("set startup enabled: %v", err)
+	}
+	if toggle.Role != "menubar" || !toggle.Enabled {
+		t.Fatalf("unexpected startup toggle response: %+v", toggle)
+	}
+}
+
 func drainHTTPHeaders(conn net.Conn) error {
 	reader := bufio.NewReader(conn)
 	for {
