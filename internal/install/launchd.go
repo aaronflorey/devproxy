@@ -40,7 +40,7 @@ func DaemonServiceConfig(paths InstallPaths) LaunchdServiceConfig {
 		Label:     "com.devproxy.daemon",
 		Domain:    DomainSystem,
 		PlistPath: filepath.Join(paths.LaunchDaemons, "com.devproxy.daemon.plist"),
-		Program:   "/usr/local/bin/devproxy",
+		Program:   daemonProgramPath,
 		Arguments: []string{"daemon"},
 	}
 }
@@ -51,7 +51,7 @@ func MenubarServiceConfig(paths InstallPaths, agentUID int) LaunchdServiceConfig
 		Domain:    DomainAgent,
 		AgentUID:  agentUID,
 		PlistPath: filepath.Join(paths.UserLibraryDir, "LaunchAgents", "com.devproxy.menubar.plist"),
-		Program:   "/usr/local/bin/devproxy",
+		Program:   daemonProgramPath,
 		Arguments: []string{"menubar"},
 	}
 }
