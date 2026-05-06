@@ -4,13 +4,13 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Phase 4 UI-SPEC approved
-last_updated: "2026-05-06T02:27:18.801Z"
+last_updated: "2026-05-06T02:34:07.156Z"
 last_activity: 2026-05-06
 progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 24
-  completed_plans: 28
+  completed_plans: 29
   percent: 100
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-05-05)
 ## Current Position
 
 Phase: 04 (menu-bar-and-dashboard-ux) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 Status: Ready to execute
 Last activity: 2026-05-06
 
@@ -64,6 +64,7 @@ Progress: [██████████] 100%
 | Phase 03 P06 | 18 | 2 tasks | 2 files |
 | Phase 04 P01 | 5 min | 2 tasks | 11 files |
 | Phase 04 P02 | 3 min | 2 tasks | 7 files |
+| Phase 04-menu-bar-and-dashboard-ux P03 | 24 min | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -105,6 +106,8 @@ Recent decisions affecting current work:
 - [Phase ?]: Dashboard localhost bind defaults to 127.0.0.1:45831 with host validation
 - [Phase ?]: Dashboard route anchors consume admin-provided OpenURL values directly
 - [Phase ?]: Refresh endpoint is POST-only at /actions/refresh and redirects with flash status
+- [Phase 04-menu-bar-and-dashboard-ux]: Menubar mutations are routed exclusively through admin API actions. — Keeps daemon as single control plane and avoids UI-side launchctl behavior divergence.
+- [Phase 04-menu-bar-and-dashboard-ux]: Route-open clicks use daemon-provided OpenURL values verbatim. — Prevents UI recomputation drift and preserves D-04 fallback decisions from daemon projection.
 
 ### Pending Todos
 
@@ -124,6 +127,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-05-06T02:26:46.278Z
+Last session: 2026-05-06T02:33:48.325Z
 Stopped at: Phase 4 UI-SPEC approved
 Resume file: None
