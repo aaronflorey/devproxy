@@ -16,8 +16,8 @@ func TestDoctorChecksRuntimeAndResolverEvidence(t *testing.T) {
 		CheckDocker:      func(context.Context) error { return nil },
 		CheckLaunchd:     func(context.Context) error { return nil },
 		CheckAdminSocket: func(context.Context) error { return nil },
-		CheckProxyHTTP:   func(context.Context) error { return nil },
-		CheckProxyHTTPS:  func(context.Context) error { return nil },
+		CheckProxyHTTP:   func(context.Context, string) error { return nil },
+		CheckProxyHTTPS:  func(context.Context, string) error { return nil },
 		ResolveExampleHost: func(context.Context, string) (string, error) {
 			return "127.0.0.1", nil
 		},
@@ -76,10 +76,13 @@ func TestDoctorIncludesLiveAdminAndProxyReachabilityFailures(t *testing.T) {
 
 	checker := NewChecker(Dependencies{
 		CheckAdminSocket: func(context.Context) error { return errors.New("connect: no such file") },
-		CheckProxyHTTP:   func(context.Context) error { return errors.New("connection refused") },
-		CheckProxyHTTPS:  func(context.Context) error { return errors.New("tls handshake timeout") },
+		CheckProxyHTTP:   func(context.Context, string) error { return errors.New("connection refused") },
+		CheckProxyHTTPS:  func(context.Context, string) error { return errors.New("tls handshake timeout") },
 		ReadResolverState: func(context.Context) (ResolverState, error) {
 			return ResolverState{ManagedSuffix: "test", ActiveResolver: true}, nil
+		},
+		ReadNetworkHealth: func(context.Context) (admin.NetworkRuntimeHealth, error) {
+			return admin.NetworkRuntimeHealth{}, nil
 		},
 	})
 
@@ -93,6 +96,70 @@ func TestDoctorIncludesLiveAdminAndProxyReachabilityFailures(t *testing.T) {
 	}
 	if checkByName(t, report, "proxy_https").OK {
 		t.Fatalf("expected proxy_https check to fail")
+	}
+}
+
+func TestDoctorBlocksManagedProxyChecksWhenRuntimeStatusUnavailable(t *testing.T) {
+	t.Parallel()
+
+	httpCalled := false
+	httpsCalled := false
+	checker := NewChecker(Dependencies{
+		ReadResolverState: func(context.Context) (ResolverState, error) {
+			return ResolverState{ManagedSuffix: "test", ActiveResolver: true}, nil
+		},
+		ReadNetworkHealth: func(context.Context) (admin.NetworkRuntimeHealth, error) {
+			return admin.NetworkRuntimeHealth{}, errors.New("admin socket unreachable")
+		},
+		CheckProxyHTTP: func(context.Context, string) error {
+			httpCalled = true
+			return nil
+		},
+		CheckProxyHTTPS: func(context.Context, string) error {
+			httpsCalled = true
+			return nil
+		},
+	})
+
+	report := checker.Run(context.Background(), "example.test")
+	for _, name := range []string{"http_listener", "https_listener", "proxy_http", "proxy_https"} {
+		check := checkByName(t, report, name)
+		if check.OK {
+			t.Fatalf("expected %s to fail when daemon status unavailable", name)
+		}
+		if !strings.Contains(check.Message, "cannot verify managed proxy reachability without daemon status") && strings.HasPrefix(name, "proxy_") {
+			t.Fatalf("unexpected proxy message for %s: %q", name, check.Message)
+		}
+	}
+	if httpCalled || httpsCalled {
+		t.Fatalf("expected managed proxy probes not to run without runtime status")
+	}
+}
+
+func TestDoctorPassesManagedHostToProxyChecks(t *testing.T) {
+	t.Parallel()
+
+	var httpHost, httpsHost string
+	checker := NewChecker(Dependencies{
+		ReadResolverState: func(context.Context) (ResolverState, error) {
+			return ResolverState{ManagedSuffix: "test", ActiveResolver: true}, nil
+		},
+		ReadNetworkHealth: func(context.Context) (admin.NetworkRuntimeHealth, error) {
+			return admin.NetworkRuntimeHealth{HTTP: admin.ListenerStatus{Bound: true}, HTTPS: admin.ListenerStatus{Bound: true}}, nil
+		},
+		CheckProxyHTTP: func(_ context.Context, host string) error {
+			httpHost = host
+			return nil
+		},
+		CheckProxyHTTPS: func(_ context.Context, host string) error {
+			httpsHost = host
+			return nil
+		},
+	})
+
+	checker.Run(context.Background(), "example.test")
+	if httpHost != "example.test" || httpsHost != "example.test" {
+		t.Fatalf("expected managed host to be forwarded, got http=%q https=%q", httpHost, httpsHost)
 	}
 }
 
