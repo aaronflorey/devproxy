@@ -2,11 +2,15 @@ package install
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
+	"strconv"
 	"strings"
+	"syscall"
 )
 
 type StartupRoleStatus struct {
@@ -67,7 +71,23 @@ func InstallService(cfg LaunchdServiceConfig) error {
 }
 
 func StartService(cfg LaunchdServiceConfig) error {
-	return runLaunchctl("bootstrap", domainTarget(cfg), cfg.PlistPath)
+	if err := validateLaunchdPreflight(cfg); err != nil {
+		return err
+	}
+
+	if err := stopServiceBestEffort(cfg); err != nil {
+		return err
+	}
+
+	if err := runLaunchctl("bootstrap", domainTarget(cfg), cfg.PlistPath); err != nil {
+		return bootstrapDiagnosticError(cfg, err)
+	}
+
+	if err := runLaunchctl("kickstart", "-k", fmt.Sprintf("%s/%s", domainTarget(cfg), cfg.Label)); err != nil {
+		return fmt.Errorf("launchd service bootstrapped but kickstart failed for %s/%s: %w", domainTarget(cfg), cfg.Label, err)
+	}
+
+	return nil
 }
 
 func StopService(_ context.Context, cfg LaunchdServiceConfig) error {
@@ -134,12 +154,113 @@ func domainTarget(cfg LaunchdServiceConfig) string {
 }
 
 func runLaunchctl(args ...string) error {
-	cmd := exec.Command("launchctl", args...)
+	_, err := runCommand("launchctl", args...)
+	return err
+}
+
+func runCommand(command string, args ...string) (string, error) {
+	cmd := exec.Command(command, args...)
 	output, err := cmd.CombinedOutput()
+	trimmed := strings.TrimSpace(string(output))
 	if err != nil {
-		return fmt.Errorf("launchctl %s failed: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(string(output)))
+		return trimmed, fmt.Errorf("%s %s failed: %w: %s", command, strings.Join(args, " "), err, trimmed)
 	}
+	return trimmed, nil
+}
+
+func stopServiceBestEffort(cfg LaunchdServiceConfig) error {
+	err := runLaunchctl("bootout", domainTarget(cfg), cfg.PlistPath)
+	if err == nil {
+		return nil
+	}
+	errMsg := err.Error()
+	if isKnownLaunchdMissingState(errMsg) {
+		return nil
+	}
+	if !isBootoutExitFiveIOError(errMsg) {
+		return err
+	}
+	if serviceAlreadyMissing(cfg) {
+		return nil
+	}
+	return err
+}
+
+func validateLaunchdPreflight(cfg LaunchdServiceConfig) error {
+	if _, err := os.Stat(cfg.PlistPath); err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("launchd preflight failed: plist %q does not exist; reinstall and retry", cfg.PlistPath)
+		}
+		return fmt.Errorf("launchd preflight failed: cannot stat plist %q: %w", cfg.PlistPath, err)
+	}
+
+	if _, err := runCommand("plutil", "-lint", cfg.PlistPath); err != nil {
+		return fmt.Errorf("launchd preflight failed: plist validation failed for %q: %w", cfg.PlistPath, err)
+	}
+
+	if cfg.Program == "" {
+		return fmt.Errorf("launchd preflight failed: program path is empty in service config")
+	}
+	programInfo, err := os.Stat(cfg.Program)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("launchd preflight failed: program %q does not exist; reinstall devproxy binary", cfg.Program)
+		}
+		return fmt.Errorf("launchd preflight failed: cannot stat program %q: %w", cfg.Program, err)
+	}
+	if programInfo.Mode().Perm()&0o111 == 0 {
+		return fmt.Errorf("launchd preflight failed: program %q is not executable; run chmod 755 %q", cfg.Program, cfg.Program)
+	}
+
+	if cfg.Domain == DomainSystem {
+		if err := validateSystemDaemonPlistPerms(cfg.PlistPath); err != nil {
+			return err
+		}
+	}
+
 	return nil
+}
+
+func validateSystemDaemonPlistPerms(path string) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("launchd preflight failed: cannot stat daemon plist %q: %w", path, err)
+	}
+
+	if stat, ok := info.Sys().(*syscall.Stat_t); ok {
+		if runtime.GOOS == "darwin" && (stat.Uid != 0 || stat.Gid != 0) {
+			return fmt.Errorf("launchd preflight failed: daemon plist %q must be owned by root:wheel (uid 0 gid 0), found uid %d gid %d; run sudo chown root:wheel %q", path, stat.Uid, stat.Gid, path)
+		}
+	}
+
+	perm := info.Mode().Perm()
+	if perm&0o022 != 0 {
+		return fmt.Errorf("launchd preflight failed: daemon plist %q permissions are %#o; group/other write bits must be disabled (recommended 0644)", path, perm)
+	}
+
+	return nil
+}
+
+func bootstrapDiagnosticError(cfg LaunchdServiceConfig, bootstrapErr error) error {
+	serviceTarget := fmt.Sprintf("%s/%s", domainTarget(cfg), cfg.Label)
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("launchd bootstrap failed for %s using %q: %v", serviceTarget, cfg.PlistPath, bootstrapErr))
+
+	hints := []string{
+		"Verify plist ownership/perms (root:wheel, mode 0644) and binary permissions (0755)",
+		"Validate plist with: plutil -lint " + strconv.Quote(cfg.PlistPath),
+		"Confirm program path exists: " + strconv.Quote(cfg.Program),
+	}
+	sb.WriteString("\nLikely causes:\n- " + strings.Join(hints, "\n- "))
+
+	printOutput, printErr := runCommand("launchctl", "print", serviceTarget)
+	if printErr != nil {
+		sb.WriteString("\nlaunchctl print diagnostics: " + printErr.Error())
+	} else {
+		sb.WriteString("\nlaunchctl print diagnostics:\n" + printOutput)
+	}
+
+	return errors.New(sb.String())
 }
 
 func isKnownLaunchdMissingState(message string) bool {
