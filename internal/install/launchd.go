@@ -60,7 +60,17 @@ func StartService(cfg LaunchdServiceConfig) error {
 
 func StopService(_ context.Context, cfg LaunchdServiceConfig) error {
 	err := runLaunchctl("bootout", domainTarget(cfg), cfg.PlistPath)
-	if err != nil && isKnownLaunchdMissingState(err.Error()) {
+	if err == nil {
+		return nil
+	}
+	errMsg := err.Error()
+	if isKnownLaunchdMissingState(errMsg) {
+		return nil
+	}
+	if !isBootoutExitFiveIOError(errMsg) {
+		return err
+	}
+	if serviceAlreadyMissing(cfg) {
 		return nil
 	}
 	return err
@@ -123,4 +133,17 @@ func isKnownLaunchdMissingState(message string) bool {
 		strings.Contains(msg, "service already unloaded") ||
 		strings.Contains(msg, "no such process") ||
 		strings.Contains(msg, "no such file")
+}
+
+func isBootoutExitFiveIOError(message string) bool {
+	msg := strings.ToLower(message)
+	return strings.Contains(msg, "boot-out failed: 5") && strings.Contains(msg, "input/output error")
+}
+
+func serviceAlreadyMissing(cfg LaunchdServiceConfig) bool {
+	err := runLaunchctl("print", fmt.Sprintf("%s/%s", domainTarget(cfg), cfg.Label))
+	if err == nil {
+		return false
+	}
+	return isKnownLaunchdMissingState(err.Error())
 }

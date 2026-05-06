@@ -67,8 +67,8 @@ func TestStopServicePreservesNonMissingBootoutFailures(t *testing.T) {
 	if readErr != nil {
 		t.Fatalf("read fake launchctl state: %v", readErr)
 	}
-	if strings.Contains(string(data), "print system/com.devproxy.daemon") {
-		t.Fatalf("did not expect print probe for non-missing-state failure")
+	if !strings.Contains(string(data), "print system/com.devproxy.daemon") {
+		t.Fatalf("expected print probe before preserving non-missing failure")
 	}
 }
 
