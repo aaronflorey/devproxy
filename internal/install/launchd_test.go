@@ -72,6 +72,15 @@ func TestStopServicePreservesNonMissingBootoutFailures(t *testing.T) {
 	}
 }
 
+func TestDomainTargetUsesAgentUIDWhenProvided(t *testing.T) {
+	t.Parallel()
+
+	cfg := LaunchdServiceConfig{Domain: DomainAgent, AgentUID: 502}
+	if got, want := domainTarget(cfg), "gui/502"; got != want {
+		t.Fatalf("expected domain target %q, got %q", want, got)
+	}
+}
+
 func makeFakeLaunchctl(t *testing.T, stateFile string, printMissing bool) string {
 	t.Helper()
 	binDir := t.TempDir()

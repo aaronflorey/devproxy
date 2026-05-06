@@ -29,6 +29,7 @@ const (
 type LaunchdServiceConfig struct {
 	Label     string
 	Domain    LaunchdDomain
+	AgentUID  int
 	PlistPath string
 	Program   string
 	Arguments []string
@@ -44,10 +45,11 @@ func DaemonServiceConfig(paths InstallPaths) LaunchdServiceConfig {
 	}
 }
 
-func MenubarServiceConfig(paths InstallPaths) LaunchdServiceConfig {
+func MenubarServiceConfig(paths InstallPaths, agentUID int) LaunchdServiceConfig {
 	return LaunchdServiceConfig{
 		Label:     "com.devproxy.menubar",
 		Domain:    DomainAgent,
+		AgentUID:  agentUID,
 		PlistPath: filepath.Join(paths.UserLibraryDir, "LaunchAgents", "com.devproxy.menubar.plist"),
 		Program:   "/usr/local/bin/devproxy",
 		Arguments: []string{"menubar"},
@@ -122,7 +124,10 @@ func domainTarget(cfg LaunchdServiceConfig) string {
 		return "system"
 	}
 	if cfg.Domain == DomainAgent {
-		uid := os.Getuid()
+		uid := cfg.AgentUID
+		if uid <= 0 {
+			uid = os.Getuid()
+		}
 		return fmt.Sprintf("gui/%d", uid)
 	}
 	return string(cfg.Domain)
@@ -160,7 +165,7 @@ func serviceAlreadyMissing(cfg LaunchdServiceConfig) bool {
 
 func StartupStatuses(paths InstallPaths) []StartupRoleStatus {
 	daemonCfg := DaemonServiceConfig(paths)
-	menubarCfg := MenubarServiceConfig(paths)
+	menubarCfg := MenubarServiceConfig(paths, os.Getuid())
 
 	daemonInstalled := fileExists(daemonCfg.PlistPath)
 	menubarInstalled := fileExists(menubarCfg.PlistPath)
@@ -193,7 +198,7 @@ func StartupStatuses(paths InstallPaths) []StartupRoleStatus {
 }
 
 func SetMenubarStartupEnabled(ctx context.Context, paths InstallPaths, enabled bool) error {
-	menubarCfg := MenubarServiceConfig(paths)
+	menubarCfg := MenubarServiceConfig(paths, os.Getuid())
 	if enabled {
 		if err := InstallService(menubarCfg); err != nil {
 			return err

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 )
 
 type Options struct {
@@ -22,6 +23,7 @@ type Dependencies struct {
 	StartDaemonService    func(LaunchdServiceConfig) error
 	InstallMenubarService func(LaunchdServiceConfig) error
 	StartMenubarService   func(LaunchdServiceConfig) error
+	ResolveGUIUser        func() (uid int, homeDir string, err error)
 }
 
 type Installer struct {
@@ -52,6 +54,9 @@ func NewInstaller(deps Dependencies) *Installer {
 	}
 	if deps.StartMenubarService == nil {
 		deps.StartMenubarService = StartService
+	}
+	if deps.ResolveGUIUser == nil {
+		deps.ResolveGUIUser = ResolveGUIUser
 	}
 	return &Installer{deps: deps}
 }
@@ -92,7 +97,14 @@ func (i *Installer) Install(ctx context.Context, opts Options) error {
 	}
 
 	if opts.WithMenubar {
-		menubarCfg := MenubarServiceConfig(paths)
+		guiUID, guiHome, err := i.deps.ResolveGUIUser()
+		if err != nil {
+			return fmt.Errorf("resolve GUI user for menubar service: %w", err)
+		}
+
+		menubarPaths := paths
+		menubarPaths.UserLibraryDir = filepath.Join(guiHome, "Library")
+		menubarCfg := MenubarServiceConfig(menubarPaths, guiUID)
 		if err := i.deps.InstallMenubarService(menubarCfg); err != nil {
 			return fmt.Errorf("install menubar service: %w", err)
 		}
