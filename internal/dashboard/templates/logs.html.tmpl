@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DevProxy Logs</title>
+  <link rel="stylesheet" href="/static/dashboard.css" />
+</head>
+<body>
+  <main class="shell">
+    <section class="card">
+      <h1>Current Session Logs</h1>
+      <ul>
+        {{range .Logs}}
+        <li>{{.Type}} {{.Hostname}} {{.Message}}</li>
+        {{else}}
+        <li>No log events yet.</li>
+        {{end}}
+      </ul>
+    </section>
+    <section class="card">
+      <h2>Current Session Errors</h2>
+      <ul>
+        {{range .Errors}}
+        <li>{{.Type}} {{.Message}}</li>
+        {{else}}
+        <li>No current-session errors.</li>
+        {{end}}
+      </ul>
+      <p>{{.ApprovedErrorMsg}}</p>
+    </section>
+  </main>
+</body>
+</html>
