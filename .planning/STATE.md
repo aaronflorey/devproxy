@@ -4,13 +4,13 @@ milestone: v1.0
 milestone_name: milestone
 status: verifying
 stopped_at: Phase 4 UI-SPEC approved
-last_updated: "2026-05-06T02:38:20.859Z"
+last_updated: "2026-05-06T03:39:49.935Z"
 last_activity: 2026-05-06
 progress:
   total_phases: 4
   completed_phases: 4
-  total_plans: 24
-  completed_plans: 30
+  total_plans: 25
+  completed_plans: 31
   percent: 100
 ---
 
@@ -66,6 +66,7 @@ Progress: [██████████] 100%
 | Phase 04 P02 | 3 min | 2 tasks | 7 files |
 | Phase 04-menu-bar-and-dashboard-ux P03 | 24 min | 2 tasks | 9 files |
 | Phase 04 P04 | 20 min | 2 tasks | 4 files |
+| Phase 04 P05 | 18 | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -111,6 +112,8 @@ Recent decisions affecting current work:
 - [Phase 04-menu-bar-and-dashboard-ux]: Route-open clicks use daemon-provided OpenURL values verbatim. — Prevents UI recomputation drift and preserves D-04 fallback decisions from daemon projection.
 - [Phase 04]: Expose dashboard route fallback reason text when HTTPS readiness degrades — Keeps HTTP fallback behavior explicit and auditable in UI surfaces.
 - [Phase 04]: Auto-approved checkpoint:human-verify for plan 04-04 — workflow.auto_advance=true allows non-blocking human-verify after automated checks pass.
+- [Phase ?]: Route slot synchronization clears and hides stale route slots on refresh.
+- [Phase ?]: Route clicks consume daemon-provided OpenURL values verbatim from menu state.
 
 ### Pending Todos
 
@@ -130,6 +133,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-05-06T02:38:07.521Z
+Last session: 2026-05-06T03:39:29.409Z
 Stopped at: Phase 4 UI-SPEC approved
 Resume file: None
