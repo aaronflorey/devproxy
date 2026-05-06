@@ -1,7 +1,7 @@
 ---
 phase: 04-menu-bar-and-dashboard-ux
-verified: 2026-05-06T03:41:23Z
-status: human_needed
+verified: 2026-05-06T23:45:31Z
+status: passed
 score: 4/4 must-haves verified
 overrides_applied: 0
 re_verification:
@@ -15,16 +15,18 @@ human_verification:
   - test: "Native macOS menubar route-opening flow"
     expected: "Active routes appear as selectable menu items and open daemon-provided OpenURL (https/http fallback preserved)."
     why_human: "Requires real systray interaction and browser launch behavior on macOS."
+    result: approved
   - test: "Dashboard visual UX and degraded-state copy"
     expected: "Dashboard sections (health/routes/conflicts/errors) are legible and degraded-state messaging appears only in true degraded/offline conditions."
     why_human: "Visual correctness and native interaction quality cannot be fully validated via static/code checks in this Linux verification environment."
+    result: approved
 ---
 
 # Phase 4: Menu Bar and Dashboard UX Verification Report
 
 **Phase Goal:** Developers can monitor devproxy and perform core control actions from the menu bar and local dashboard.  
-**Verified:** 2026-05-06T03:41:23Z  
-**Status:** human_needed  
+**Verified:** 2026-05-06T23:45:31Z  
+**Status:** passed  
 **Re-verification:** Yes — after gap closure
 
 ## Goal Achievement
@@ -85,25 +87,27 @@ human_verification:
 |---|---:|---|---|---|
 | `internal/menubar/runtime_darwin.go` | - | None blocking found | ℹ️ Info | No TODO/placeholder/stub indicators in modified runtime files. |
 
-### Human Verification Required
+### Human Verification
 
-Checkpoint artifact: `.planning/phases/04-menu-bar-and-dashboard-ux/04-HUMAN-UAT.md` (status: `human_needed`, started 2026-05-06T03:48:45Z).
+Checkpoint artifact: `.planning/phases/04-menu-bar-and-dashboard-ux/04-HUMAN-UAT.md` (status: `approved`, started 2026-05-06T03:48:45Z, approved 2026-05-06T23:45:31Z).
 
 ### 1. Native macOS menubar route-opening flow
 **Test:** Launch `devproxy menubar` on macOS with active routes; verify route entries appear and are selectable. Click HTTPS-ready and degraded routes.  
 **Expected:** Each click opens the daemon-provided `OpenURL` scheme (`https://` when ready, `http://` when degraded).  
-**Why human:** Requires real systray rendering and browser-launch behavior on macOS.
+**Why human:** Requires real systray rendering and browser-launch behavior on macOS.  
+**Result:** Approved by user.
 
 ### 2. Dashboard visual/degraded-state UX
 **Test:** Launch `devproxy dashboard`, open `http://127.0.0.1:45831/`, inspect readability and degraded/offline copy behavior.  
 **Expected:** Health/routes/conflicts/current-session errors remain legible; degraded copy appears only when daemon is actually degraded/offline.  
-**Why human:** Visual UX quality cannot be fully asserted via static analysis/tests.
+**Why human:** Visual UX quality cannot be fully asserted via static analysis/tests.  
+**Result:** Approved by user.
 
 ### Gaps Summary
 
-No remaining code-level blockers were found for Phase 4 must-haves. The prior UI-03 blocker is resolved in runtime wiring. Final sign-off now depends on native macOS interaction checks.
+No remaining code-level blockers were found for Phase 4 must-haves. The prior UI-03 blocker is resolved in runtime wiring, and native macOS interaction checks were approved by the user.
 
 ---
 
-_Verified: 2026-05-06T03:41:23Z_  
+_Verified: 2026-05-06T23:45:31Z_  
 _Verifier: the agent (gsd-verifier)_

@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [ ] **Phase 1: Discovery, Domains, and Conflict Policy** - Compute reliable route intent from running Compose containers and overrides.
 - [x] **Phase 2: Local DNS, Proxy, and HTTPS Serving** - Make mapped domains resolve and serve HTTP/HTTPS traffic locally. (completed 2026-05-05)
 - [ ] **Phase 3: Install, Daemon Lifecycle, and Diagnostics** - Make devproxy installable, operable, and debuggable on macOS.
-- [ ] **Phase 4: Menu Bar and Dashboard UX** - Expose daemon health and route controls through macOS UI surfaces.
+- [x] **Phase 4: Menu Bar and Dashboard UX** - Expose daemon health and route controls through macOS UI surfaces. (completed 2026-05-06)
 
 ## Phase Details
 
@@ -115,19 +115,19 @@ Plans:
 
 Plans:
 **Wave 1**
-- [ ] 04-01-PLAN.md -- Extend daemon/admin API contracts for menu controls, route-open metadata, and role-aware start-at-login state.
+- [x] 04-01-PLAN.md -- Extend daemon/admin API contracts for menu controls, route-open metadata, and role-aware start-at-login state.
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 04-02-PLAN.md -- Add the localhost dashboard command and server-rendered UI backed only by admin API projections, including recent conflicts/errors and route links.
+- [x] 04-02-PLAN.md -- Add the localhost dashboard command and server-rendered UI backed only by admin API projections, including recent conflicts/errors and route links.
 
 **Wave 3** *(blocked on Waves 1-2 completion as declared by plan dependencies)*
-- [ ] 04-03-PLAN.md -- Add `devproxy menubar` runtime with systray actions for refresh, doctor, logs, pause/resume, route-open, dashboard launch, and role-aware start-at-login state.
+- [x] 04-03-PLAN.md -- Add `devproxy menubar` runtime with systray actions for refresh, doctor, logs, pause/resume, route-open, dashboard launch, and role-aware start-at-login state.
 
 **Wave 4** *(blocked on Waves 2-3 completion as declared by plan dependencies)*
-- [ ] 04-04-PLAN.md -- Harden UI fallbacks, launch/open failure handling, and end-to-end dashboard/menubar integration coverage.
+- [x] 04-04-PLAN.md -- Harden UI fallbacks, launch/open failure handling, and end-to-end dashboard/menubar integration coverage.
 
 **Wave 5** *(gap closure after verification)*
-- [ ] 04-05-PLAN.md -- Close the UI-03 verification gap by rendering selectable route items in the systray runtime and proving OpenURL click wiring with runtime-level tests.
+- [x] 04-05-PLAN.md -- Close the UI-03 verification gap by rendering selectable route items in the systray runtime and proving OpenURL click wiring with runtime-level tests.
 
 ## Progress
 
@@ -139,4 +139,4 @@ Phases execute in numeric order: 2 → 2.1 → 2.2 → 3 → 3.1 → 4
 | 1. Discovery, Domains, and Conflict Policy | 0/5 | Planned | - |
 | 2. Local DNS, Proxy, and HTTPS Serving | 5/5 | Complete   | 2026-05-05 |
 | 3. Install, Daemon Lifecycle, and Diagnostics | 0/4 | Not started | - |
-| 4. Menu Bar and Dashboard UX | 4/5 | In Progress|  |
+| 4. Menu Bar and Dashboard UX | 5/5 | Complete | 2026-05-06 |
