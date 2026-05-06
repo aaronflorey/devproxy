@@ -13,9 +13,9 @@ func TestStatusIncludesIndependentNetworkAndCertificateHealth(t *testing.T) {
 	watcher := WatcherHealth{Connected: true}
 
 	status := BuildStatus(snapshot, watcher, now, NetworkRuntimeStatus{
-		DNS: DNSStatus{Healthy: true, ManagedSuffix: "test"},
-		HTTP: ListenerStatus{Enabled: true, Bound: true, BindAddress: "127.0.0.1:80"},
-		HTTPS: ListenerStatus{Enabled: true, Bound: false, BindAddress: "127.0.0.1:443", LastError: "bind: permission denied"},
+		DNS:              DNSStatus{Healthy: true, ManagedSuffix: "test"},
+		HTTP:             ListenerStatus{Enabled: true, Bound: true, BindAddress: "127.0.0.1:80"},
+		HTTPS:            ListenerStatus{Enabled: true, Bound: false, BindAddress: "127.0.0.1:443", LastError: "bind: permission denied"},
 		Paused:           true,
 		CertificateReady: false,
 	})

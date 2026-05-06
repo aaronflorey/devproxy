@@ -91,6 +91,45 @@ func (c *Client) Refresh(ctx context.Context, reason string) (RefreshResponse, e
 	return payload, nil
 }
 
+func (c *Client) PauseRouting(ctx context.Context) (RoutingPauseResumeResponse, error) {
+	return postJSON[RoutingPauseResumeResponse](ctx, c.httpClient, "/routing/pause", struct{}{})
+}
+
+func (c *Client) ResumeRouting(ctx context.Context) (RoutingPauseResumeResponse, error) {
+	return postJSON[RoutingPauseResumeResponse](ctx, c.httpClient, "/routing/resume", struct{}{})
+}
+
+func (c *Client) StartupStatus(ctx context.Context) (StartupStatusResponse, error) {
+	return fetchJSON[StartupStatusResponse](ctx, c.httpClient, "/startup")
+}
+
+func (c *Client) SetStartupEnabled(ctx context.Context, req StartupToggleRequest) (StartupToggleResponse, error) {
+	return postJSON[StartupToggleResponse](ctx, c.httpClient, "/startup", req)
+}
+
+func postJSON[T any](ctx context.Context, client *http.Client, path string, reqBody any) (T, error) {
+	var zero T
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		return zero, fmt.Errorf("encode %s request: %w", path, err)
+	}
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://unix"+path, bytes.NewReader(body))
+	if err != nil {
+		return zero, fmt.Errorf("build %s request: %w", path, err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		return zero, fmt.Errorf("request %s: %w", path, err)
+	}
+	defer resp.Body.Close()
+	var payload T
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return zero, fmt.Errorf("decode %s response: %w", path, err)
+	}
+	return payload, nil
+}
+
 func fetchJSON[T any](ctx context.Context, client *http.Client, path string) (T, error) {
 	var zero T
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://unix"+path, nil)

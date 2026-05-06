@@ -1,22 +1,33 @@
 package admin
 
 import (
-	"time"
 	"github.com/mochaka/devproxy/internal/routing"
+	"time"
 )
 
 type StatusView struct {
-	SnapshotVersion string
-	ActiveRoutes    int
-	Conflicts       int
-	Warnings        int
-	LastSync        time.Time
-	Watcher         WatcherHealth
-	DNS             DNSStatus
-	HTTP            ListenerStatus
-	HTTPS           ListenerStatus
-	Paused          bool
+	SnapshotVersion  string
+	ActiveRoutes     int
+	Conflicts        int
+	Warnings         int
+	LastSync         time.Time
+	Watcher          WatcherHealth
+	DNS              DNSStatus
+	HTTP             ListenerStatus
+	HTTPS            ListenerStatus
+	Paused           bool
 	CertificateReady bool
+	StartupRoles     []StartupRoleStatus
+}
+
+type StartupRoleStatus struct {
+	Role          string
+	Domain        string
+	Label         string
+	Installed     bool
+	Running       bool
+	Toggleable    bool
+	StatusMessage string
 }
 
 type WatcherHealth struct {
@@ -72,10 +83,10 @@ type NetworkRuntimeHealth struct {
 
 func NetworkRuntimeStatusFromHealth(health NetworkRuntimeHealth) NetworkRuntimeStatus {
 	return NetworkRuntimeStatus{
-		DNS: DNSStatus{Healthy: health.DNS.Bound, ManagedSuffix: health.ManagedSuffix},
-		HTTP: ListenerStatus{Enabled: health.HTTP.Enabled, Bound: health.HTTP.Bound, BindAddress: health.HTTP.BindAddress, LastError: health.HTTP.LastError},
-		HTTPS: ListenerStatus{Enabled: health.HTTPS.Enabled, Bound: health.HTTPS.Bound, BindAddress: health.HTTPS.BindAddress, LastError: health.HTTPS.LastError},
-		Paused: health.Paused,
+		DNS:              DNSStatus{Healthy: health.DNS.Bound, ManagedSuffix: health.ManagedSuffix},
+		HTTP:             ListenerStatus{Enabled: health.HTTP.Enabled, Bound: health.HTTP.Bound, BindAddress: health.HTTP.BindAddress, LastError: health.HTTP.LastError},
+		HTTPS:            ListenerStatus{Enabled: health.HTTPS.Enabled, Bound: health.HTTPS.Bound, BindAddress: health.HTTPS.BindAddress, LastError: health.HTTPS.LastError},
+		Paused:           health.Paused,
 		CertificateReady: health.CertificateReady,
 	}
 }

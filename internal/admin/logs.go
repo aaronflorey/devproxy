@@ -7,14 +7,23 @@ import (
 )
 
 type LogEvent struct {
-	Timestamp time.Time
-	Type      string
-	Message   string
-	Hostname  string
-	HandlingState string
+	Timestamp      time.Time
+	Type           string
+	Message        string
+	Hostname       string
+	HandlingState  string
 	UpstreamScheme string
-	UpstreamPort int
+	UpstreamPort   int
 }
+
+type SessionIssue struct {
+	Timestamp time.Time
+	Role      string
+	Action    string
+	Message   string
+}
+
+const SessionIssueLimit = 25
 
 func BuildSessionEvents(snapshot routing.Snapshot) []LogEvent {
 	result := []LogEvent{}
@@ -29,4 +38,19 @@ func BuildSessionEvents(snapshot routing.Snapshot) []LogEvent {
 		result = append(result, LogEvent{Timestamp: now, Type: "route", Message: "active route", Hostname: host, HandlingState: "proxy", UpstreamScheme: route.Upstream.Scheme, UpstreamPort: route.Upstream.Port})
 	}
 	return result
+}
+
+func BuildSessionIssues(issues []SessionIssue) []SessionIssue {
+	if len(issues) == 0 {
+		return nil
+	}
+	limit := SessionIssueLimit
+	if len(issues) < limit {
+		limit = len(issues)
+	}
+	out := make([]SessionIssue, 0, limit)
+	for i := len(issues) - 1; i >= 0 && len(out) < limit; i-- {
+		out = append(out, issues[i])
+	}
+	return out
 }
