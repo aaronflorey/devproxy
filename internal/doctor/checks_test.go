@@ -3,11 +3,44 @@ package doctor
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/mochaka/devproxy/internal/admin"
 )
+
+func TestCheckLaunchdFailsWhenStateNotRunning(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("launchctl script test is unix-only")
+	}
+
+	binDir := t.TempDir()
+	launchctlPath := filepath.Join(binDir, "launchctl")
+	script := "#!/bin/sh\n" +
+		"if [ \"$1\" = \"print\" ]; then\n" +
+		"  echo \"state = exited\"\n" +
+		"  echo \"last exit code = 1\"\n" +
+		"  exit 0\n" +
+		"fi\n" +
+		"exit 0\n"
+	if err := os.WriteFile(launchctlPath, []byte(script), 0o755); err != nil {
+		t.Fatalf("write fake launchctl: %v", err)
+	}
+
+	originalPath := os.Getenv("PATH")
+	t.Setenv("PATH", binDir+":"+originalPath)
+
+	err := checkLaunchd(context.Background())
+	if err == nil {
+		t.Fatalf("expected checkLaunchd to fail when state is not running")
+	}
+	if !strings.Contains(err.Error(), "not running") || !strings.Contains(err.Error(), "state = exited") {
+		t.Fatalf("expected launchd state hint in error, got %v", err)
+	}
+}
 
 func TestDoctorChecksRuntimeAndResolverEvidence(t *testing.T) {
 	t.Parallel()
