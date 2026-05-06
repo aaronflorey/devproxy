@@ -8,10 +8,8 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/user"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"time"
 
 	"github.com/mochaka/devproxy/internal/admin"
@@ -54,8 +52,8 @@ type Server struct {
 }
 
 var (
-	lookupGroup = user.LookupGroup
-	osChown     = os.Chown
+	osChown                 = os.Chown
+	resolveActiveGUIUserIDs = activeGUIUserIDs
 )
 
 func NewServer(cfg ServerConfig) (*Server, error) {
@@ -175,7 +173,12 @@ func removeStaleSocket(path string) error {
 }
 
 func setAdminSocketAccess(path string) error {
-	if err := os.Chmod(path, 0o660); err != nil {
+	mode := os.FileMode(0o660)
+	if runtime.GOOS == "darwin" {
+		mode = 0o600
+	}
+
+	if err := os.Chmod(path, mode); err != nil {
 		return err
 	}
 
@@ -183,18 +186,13 @@ func setAdminSocketAccess(path string) error {
 		return nil
 	}
 
-	group, err := lookupGroup("admin")
+	uid, gid, err := resolveActiveGUIUserIDs()
 	if err != nil {
-		return nil
+		return err
 	}
 
-	gid, err := strconv.Atoi(group.Gid)
-	if err != nil {
-		return nil
-	}
-
-	if err := osChown(path, -1, gid); err != nil {
-		return nil
+	if err := osChown(path, uid, gid); err != nil {
+		return fmt.Errorf("chown admin socket to active GUI user uid=%d gid=%d: %w", uid, gid, err)
 	}
 
 	return nil
