@@ -13,6 +13,7 @@ func TestInstallCreatesPathsResolverBootstrapsCertsAndStartsDaemon(t *testing.T)
 
 	var calls []string
 	installer := NewInstaller(Dependencies{
+		CurrentEUID: func() int { return 0 },
 		EnsurePaths: func(InstallPaths) error {
 			calls = append(calls, "paths")
 			return nil
@@ -62,13 +63,14 @@ func TestInstallInstallsMenubarOnlyWhenOptedIn(t *testing.T) {
 
 	var menubarInstallCount int
 	installer := NewInstaller(Dependencies{
-		EnsurePaths:            func(InstallPaths) error { return nil },
-		WriteResolver:          func(ResolverConfig) error { return nil },
-		BootstrapCertificates:  func(context.Context) error { return nil },
-		InstallDaemonService:   func(LaunchdServiceConfig) error { return nil },
-		StartDaemonService:     func(LaunchdServiceConfig) error { return nil },
-		InstallMenubarService:  func(LaunchdServiceConfig) error { menubarInstallCount++; return nil },
-		StartMenubarService:    func(LaunchdServiceConfig) error { return nil },
+		CurrentEUID:           func() int { return 0 },
+		EnsurePaths:           func(InstallPaths) error { return nil },
+		WriteResolver:         func(ResolverConfig) error { return nil },
+		BootstrapCertificates: func(context.Context) error { return nil },
+		InstallDaemonService:  func(LaunchdServiceConfig) error { return nil },
+		StartDaemonService:    func(LaunchdServiceConfig) error { return nil },
+		InstallMenubarService: func(LaunchdServiceConfig) error { menubarInstallCount++; return nil },
+		StartMenubarService:   func(LaunchdServiceConfig) error { return nil },
 	})
 
 	if err := installer.Install(context.Background(), Options{Suffix: "test", WithMenubar: false}); err != nil {
@@ -117,6 +119,7 @@ func TestInstallWrapsResolverErrors(t *testing.T) {
 	t.Parallel()
 
 	installer := NewInstaller(Dependencies{
+		CurrentEUID:           func() int { return 0 },
 		EnsurePaths:           func(InstallPaths) error { return nil },
 		WriteResolver:         func(ResolverConfig) error { return errors.New("permission denied") },
 		BootstrapCertificates: func(context.Context) error { return nil },
@@ -127,5 +130,29 @@ func TestInstallWrapsResolverErrors(t *testing.T) {
 	err := installer.Install(context.Background(), Options{Suffix: "test"})
 	if err == nil || !strings.Contains(err.Error(), "resolver") {
 		t.Fatalf("expected explicit resolver failure, got %v", err)
+	}
+}
+
+func TestInstallRequiresRootBeforeMutations(t *testing.T) {
+	t.Parallel()
+
+	mutated := false
+	installer := NewInstaller(Dependencies{
+		CurrentEUID: func() int { return 501 },
+		EnsurePaths: func(InstallPaths) error {
+			mutated = true
+			return nil
+		},
+	})
+
+	err := installer.Install(context.Background(), Options{Suffix: "test"})
+	if err == nil {
+		t.Fatalf("expected root preflight error")
+	}
+	if !strings.Contains(err.Error(), "devproxy install requires root privileges; rerun with sudo") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if mutated {
+		t.Fatalf("expected no install mutations before root preflight")
 	}
 }
