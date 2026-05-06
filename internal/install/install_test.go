@@ -26,6 +26,13 @@ func TestInstallCreatesPathsResolverBootstrapsCertsAndStartsDaemon(t *testing.T)
 			calls = append(calls, "certs")
 			return nil
 		},
+		PrepareDaemonBinary: func(path string) error {
+			calls = append(calls, "stage-binary")
+			if got, want := path, daemonProgramPath; got != want {
+				t.Fatalf("expected daemon program path %q, got %q", want, got)
+			}
+			return nil
+		},
 		InstallDaemonService: func(serviceConfig LaunchdServiceConfig) error {
 			calls = append(calls, "daemon-install")
 			if got, want := serviceConfig.Domain, DomainSystem; got != want {
@@ -51,10 +58,44 @@ func TestInstallCreatesPathsResolverBootstrapsCertsAndStartsDaemon(t *testing.T)
 	}
 
 	joined := strings.Join(calls, ",")
-	for _, want := range []string{"paths", "resolver", "certs", "daemon-install", "daemon-start"} {
+	for _, want := range []string{"paths", "resolver", "certs", "stage-binary", "daemon-install", "daemon-start"} {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("expected call %q in flow, got %q", want, joined)
 		}
+	}
+}
+
+func TestInstallFailsWithActionableErrorWhenDaemonBinaryStagingFails(t *testing.T) {
+	t.Parallel()
+
+	daemonInstalled := false
+	installer := NewInstaller(Dependencies{
+		CurrentEUID:           func() int { return 0 },
+		EnsurePaths:           func(InstallPaths) error { return nil },
+		WriteResolver:         func(ResolverConfig) error { return nil },
+		BootstrapCertificates: func(context.Context) error { return nil },
+		PrepareDaemonBinary: func(string) error {
+			return errors.New("source executable is not readable")
+		},
+		InstallDaemonService: func(LaunchdServiceConfig) error {
+			daemonInstalled = true
+			return nil
+		},
+		StartDaemonService: func(LaunchdServiceConfig) error { return nil },
+	})
+
+	err := installer.Install(context.Background(), Options{Suffix: "test"})
+	if err == nil {
+		t.Fatalf("expected staging failure")
+	}
+	if !strings.Contains(err.Error(), "stage daemon executable") {
+		t.Fatalf("expected explicit staging context in error, got %v", err)
+	}
+	if !strings.Contains(err.Error(), daemonProgramPath) {
+		t.Fatalf("expected target daemon path in error, got %v", err)
+	}
+	if daemonInstalled {
+		t.Fatalf("expected daemon service install to stop when binary staging fails")
 	}
 }
 
@@ -67,6 +108,7 @@ func TestInstallInstallsMenubarOnlyWhenOptedIn(t *testing.T) {
 		EnsurePaths:           func(InstallPaths) error { return nil },
 		WriteResolver:         func(ResolverConfig) error { return nil },
 		BootstrapCertificates: func(context.Context) error { return nil },
+		PrepareDaemonBinary:   func(string) error { return nil },
 		InstallDaemonService:  func(LaunchdServiceConfig) error { return nil },
 		StartDaemonService:    func(LaunchdServiceConfig) error { return nil },
 		InstallMenubarService: func(LaunchdServiceConfig) error { menubarInstallCount++; return nil },
@@ -131,6 +173,7 @@ func TestInstallWithMenubarTargetsResolvedGUIUser(t *testing.T) {
 		EnsurePaths:           func(InstallPaths) error { return nil },
 		WriteResolver:         func(ResolverConfig) error { return nil },
 		BootstrapCertificates: func(context.Context) error { return nil },
+		PrepareDaemonBinary:   func(string) error { return nil },
 		InstallDaemonService:  func(LaunchdServiceConfig) error { return nil },
 		StartDaemonService:    func(LaunchdServiceConfig) error { return nil },
 		ResolveGUIUser:        func() (int, string, error) { return 502, "/Users/alice", nil },
@@ -160,6 +203,7 @@ func TestInstallWithMenubarFailsExplicitlyWithoutGUIUser(t *testing.T) {
 		EnsurePaths:           func(InstallPaths) error { return nil },
 		WriteResolver:         func(ResolverConfig) error { return nil },
 		BootstrapCertificates: func(context.Context) error { return nil },
+		PrepareDaemonBinary:   func(string) error { return nil },
 		InstallDaemonService:  func(LaunchdServiceConfig) error { return nil },
 		StartDaemonService:    func(LaunchdServiceConfig) error { return nil },
 		ResolveGUIUser: func() (int, string, error) {
@@ -187,6 +231,7 @@ func TestInstallWrapsResolverErrors(t *testing.T) {
 		EnsurePaths:           func(InstallPaths) error { return nil },
 		WriteResolver:         func(ResolverConfig) error { return errors.New("permission denied") },
 		BootstrapCertificates: func(context.Context) error { return nil },
+		PrepareDaemonBinary:   func(string) error { return nil },
 		InstallDaemonService:  func(LaunchdServiceConfig) error { return nil },
 		StartDaemonService:    func(LaunchdServiceConfig) error { return nil },
 	})
