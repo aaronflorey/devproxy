@@ -8,7 +8,10 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/user"
 	"path/filepath"
+	"runtime"
+	"strconv"
 	"time"
 
 	"github.com/mochaka/devproxy/internal/admin"
@@ -49,6 +52,11 @@ type Server struct {
 	httpServer        *http.Server
 	listener          net.Listener
 }
+
+var (
+	lookupGroup = user.LookupGroup
+	osChown     = os.Chown
+)
 
 func NewServer(cfg ServerConfig) (*Server, error) {
 	if cfg.SocketPath == "" {
@@ -115,7 +123,7 @@ func (s *Server) Start() error {
 	if err != nil {
 		return fmt.Errorf("listen admin socket %q: %w", s.socketPath, err)
 	}
-	if err := os.Chmod(s.socketPath, 0o600); err != nil {
+	if err := setAdminSocketAccess(s.socketPath); err != nil {
 		_ = listener.Close()
 		return fmt.Errorf("set admin socket permissions: %w", err)
 	}
@@ -164,6 +172,32 @@ func removeStaleSocket(path string) error {
 		return nil
 	}
 	return fmt.Errorf("admin socket path %q already exists and is not removable type: %s", path, info.Mode())
+}
+
+func setAdminSocketAccess(path string) error {
+	if err := os.Chmod(path, 0o660); err != nil {
+		return err
+	}
+
+	if runtime.GOOS != "darwin" {
+		return nil
+	}
+
+	group, err := lookupGroup("admin")
+	if err != nil {
+		return nil
+	}
+
+	gid, err := strconv.Atoi(group.Gid)
+	if err != nil {
+		return nil
+	}
+
+	if err := osChown(path, -1, gid); err != nil {
+		return nil
+	}
+
+	return nil
 }
 
 func (s *Server) handleStatus(w http.ResponseWriter, _ *http.Request) {
