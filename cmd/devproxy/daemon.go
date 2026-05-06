@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"os/signal"
 	"syscall"
 
@@ -36,7 +35,6 @@ func newDaemonCommand() *cobra.Command {
 				HTTPAddress:     httpAddress,
 				HTTPSAddress:    httpsAddress,
 				Config:          cfg,
-				DockerPing:      dockerPing,
 				EnsureMKCert:    daemon.DefaultEnsureMKCert,
 			})
 			defer func() { _ = app.Close(context.Background()) }()
@@ -52,13 +50,4 @@ func newDaemonCommand() *cobra.Command {
 	cmd.Flags().StringVar(&httpAddress, "http-address", "127.0.0.1:80", "HTTP listener bind address")
 	cmd.Flags().StringVar(&httpsAddress, "https-address", "127.0.0.1:443", "HTTPS listener bind address")
 	return cmd
-}
-
-func dockerPing(context.Context) error {
-	cmd := exec.Command("docker", "info")
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("docker info failed: %w: %s", err, string(output))
-	}
-	return nil
 }

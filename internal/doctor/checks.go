@@ -10,9 +10,11 @@ import (
 	"os/exec"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/mochaka/devproxy/internal/admin"
 	"github.com/mochaka/devproxy/internal/adminapi"
+	mdns "github.com/miekg/dns"
 )
 
 type ResolverState struct {
@@ -48,6 +50,11 @@ type Dependencies struct {
 type Checker struct{ deps Dependencies }
 
 var execCommand = exec.Command
+
+var dnsExchange = func(msg *mdns.Msg, address string) (*mdns.Msg, time.Duration, error) {
+	client := new(mdns.Client)
+	return client.Exchange(msg, address)
+}
 
 func NewChecker(deps Dependencies) *Checker {
 	if deps.CheckDocker == nil {
@@ -118,8 +125,13 @@ func (c *Checker) Run(ctx context.Context, exampleHost string) Report {
 
 	managedHost := strings.TrimSpace(exampleHost)
 	if managedHost == "" {
-		managedHost = "example.test"
+		suffix := strings.TrimSpace(resolverState.ManagedSuffix)
+		if suffix == "" {
+			suffix = "test"
+		}
+		managedHost = "example." + suffix
 	}
+	usingPlaceholderHost := strings.EqualFold(managedHost, "example."+strings.Trim(strings.TrimSpace(resolverState.ManagedSuffix), "."))
 	if resolverErr != nil || !resolverState.ActiveResolver || healthErr != nil {
 		reason := "unknown"
 		switch {
@@ -138,8 +150,12 @@ func (c *Checker) Run(ctx context.Context, exampleHost string) Report {
 	} else {
 		checks = append(checks,
 			probeWithHost("proxy_http", c.deps.CheckProxyHTTP, ctx, managedHost),
-			probeWithHost("proxy_https", c.deps.CheckProxyHTTPS, ctx, managedHost),
 		)
+		if usingPlaceholderHost {
+			checks = append(checks, CheckResult{Name: "proxy_https", OK: true, Message: "skipped TLS probe without a route-specific host; use --example-host to verify HTTPS end-to-end"})
+		} else {
+			checks = append(checks, probeWithHost("proxy_https", c.deps.CheckProxyHTTPS, ctx, managedHost))
+		}
 	}
 
 	checks = append(checks,
@@ -147,12 +163,12 @@ func (c *Checker) Run(ctx context.Context, exampleHost string) Report {
 		probe("local_ca", c.deps.CheckLocalCA, ctx),
 	)
 
-	if strings.TrimSpace(exampleHost) != "" {
-		_, err := c.deps.ResolveExampleHost(ctx, exampleHost)
+	if managedHost != "" {
+		_, err := c.deps.ResolveExampleHost(ctx, managedHost)
 		if err != nil {
 			checks = append(checks, CheckResult{Name: "managed_domain_resolution", OK: false, Message: err.Error()})
 		} else {
-			checks = append(checks, CheckResult{Name: "managed_domain_resolution", OK: true, Message: "example managed domain resolves"})
+			checks = append(checks, CheckResult{Name: "managed_domain_resolution", OK: true, Message: managedHost + " resolves via devproxy DNS"})
 		}
 	}
 
@@ -289,14 +305,15 @@ func readResolverState(context.Context) (ResolverState, error) {
 }
 
 func resolveExampleHost(_ context.Context, host string) (string, error) {
-	cmd := execCommand("dscacheutil", "-q", "host", "-a", "name", host)
-	out, err := cmd.CombinedOutput()
+	query := new(mdns.Msg)
+	query.SetQuestion(mdns.Fqdn(host), mdns.TypeA)
+	resp, _, err := dnsExchange(query, "127.0.0.1:53535")
 	if err != nil {
-		return "", fmt.Errorf("lookup %s failed via dscacheutil: %w: %s", host, err, strings.TrimSpace(string(out)))
+		return "", fmt.Errorf("lookup %s failed via devproxy DNS: %w", host, err)
 	}
-	addr := parseDSCacheUtilAddress(string(out))
+	addr := parseDNSAnswerAddress(resp)
 	if addr == "" {
-		return "", fmt.Errorf("lookup %s returned no addresses via dscacheutil", host)
+		return "", fmt.Errorf("lookup %s returned no addresses via devproxy DNS", host)
 	}
 	return addr, nil
 }
@@ -310,16 +327,16 @@ func scutilHasManagedResolver(scutilOutput, suffix string) bool {
 	return regexp.MustCompile(pattern).MatchString(scutilOutput)
 }
 
-func parseDSCacheUtilAddress(output string) string {
-	for _, line := range strings.Split(output, "\n") {
-		trimmed := strings.TrimSpace(line)
-		if !strings.HasPrefix(strings.ToLower(trimmed), "ip_address:") {
+func parseDNSAnswerAddress(resp *mdns.Msg) string {
+	if resp == nil {
+		return ""
+	}
+	for _, answer := range resp.Answer {
+		record, ok := answer.(*mdns.A)
+		if !ok || record.A == nil {
 			continue
 		}
-		value := strings.TrimSpace(strings.TrimPrefix(trimmed, "ip_address:"))
-		if value != "" {
-			return value
-		}
+		return record.A.String()
 	}
 	return ""
 }

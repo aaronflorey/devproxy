@@ -37,6 +37,8 @@ type LaunchdServiceConfig struct {
 	PlistPath string
 	Program   string
 	Arguments []string
+	StdoutLog string
+	StderrLog string
 }
 
 const launchdDefaultPath = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
@@ -48,6 +50,8 @@ func DaemonServiceConfig(paths InstallPaths) LaunchdServiceConfig {
 		PlistPath: filepath.Join(paths.LaunchDaemons, "com.devproxy.daemon.plist"),
 		Program:   daemonProgramPath,
 		Arguments: []string{"daemon"},
+		StdoutLog: filepath.Join(paths.LogDir, "daemon.stdout.log"),
+		StderrLog: filepath.Join(paths.LogDir, "daemon.stderr.log"),
 	}
 }
 
@@ -59,6 +63,8 @@ func MenubarServiceConfig(paths InstallPaths, agentUID int) LaunchdServiceConfig
 		PlistPath: filepath.Join(paths.UserLibraryDir, "LaunchAgents", "com.devproxy.menubar.plist"),
 		Program:   daemonProgramPath,
 		Arguments: []string{"menubar"},
+		StdoutLog: filepath.Join(paths.LogDir, "menubar.stdout.log"),
+		StderrLog: filepath.Join(paths.LogDir, "menubar.stderr.log"),
 	}
 }
 
@@ -122,6 +128,14 @@ func plistFor(cfg LaunchdServiceConfig) string {
 	for _, arg := range cfg.Arguments {
 		args += fmt.Sprintf("\n        <string>%s</string>", arg)
 	}
+	stdoutLog := ""
+	if cfg.StdoutLog != "" {
+		stdoutLog = fmt.Sprintf("\n    <key>StandardOutPath</key>\n    <string>%s</string>", cfg.StdoutLog)
+	}
+	stderrLog := ""
+	if cfg.StderrLog != "" {
+		stderrLog = fmt.Sprintf("\n    <key>StandardErrorPath</key>\n    <string>%s</string>", cfg.StderrLog)
+	}
 	return fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -140,10 +154,10 @@ func plistFor(cfg LaunchdServiceConfig) string {
     <dict>
         <key>PATH</key>
         <string>%s</string>
-    </dict>
+    </dict>%s%s
 </dict>
 </plist>
-`, cfg.Label, cfg.Program, args, launchdDefaultPath)
+`, cfg.Label, cfg.Program, args, launchdDefaultPath, stdoutLog, stderrLog)
 }
 
 func domainTarget(cfg LaunchdServiceConfig) string {

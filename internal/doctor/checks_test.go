@@ -3,14 +3,16 @@ package doctor
 import (
 	"context"
 	"errors"
+	"net"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/mochaka/devproxy/internal/admin"
+	mdns "github.com/miekg/dns"
 )
 
 func TestCheckLaunchdFailsWhenStateNotRunning(t *testing.T) {
@@ -191,9 +193,46 @@ func TestDoctorPassesManagedHostToProxyChecks(t *testing.T) {
 		},
 	})
 
-	checker.Run(context.Background(), "example.test")
-	if httpHost != "example.test" || httpsHost != "example.test" {
+	checker.Run(context.Background(), "api.acme.test")
+	if httpHost != "api.acme.test" || httpsHost != "api.acme.test" {
 		t.Fatalf("expected managed host to be forwarded, got http=%q https=%q", httpHost, httpsHost)
+	}
+}
+
+func TestDoctorSkipsPlaceholderHTTPSProbeWhenUsingDefaultHost(t *testing.T) {
+	t.Parallel()
+
+	var httpHost, httpsHost string
+	checker := NewChecker(Dependencies{
+		ReadResolverState: func(context.Context) (ResolverState, error) {
+			return ResolverState{ManagedSuffix: "test", ActiveResolver: true}, nil
+		},
+		ReadNetworkHealth: func(context.Context) (admin.NetworkRuntimeHealth, error) {
+			return admin.NetworkRuntimeHealth{HTTP: admin.ListenerStatus{Bound: true}, HTTPS: admin.ListenerStatus{Bound: true}}, nil
+		},
+		CheckProxyHTTP: func(_ context.Context, host string) error {
+			httpHost = host
+			return nil
+		},
+		CheckProxyHTTPS: func(_ context.Context, host string) error {
+			httpsHost = host
+			return nil
+		},
+		ResolveExampleHost: func(context.Context, string) (string, error) {
+			return "127.0.0.1", nil
+		},
+	})
+
+	report := checker.Run(context.Background(), "")
+	if httpHost != "example.test" {
+		t.Fatalf("expected HTTP placeholder host and skipped HTTPS host, got http=%q https=%q", httpHost, httpsHost)
+	}
+	if httpsHost != "" {
+		t.Fatalf("expected HTTPS proxy probe to be skipped for placeholder host")
+	}
+	check := checkByName(t, report, "proxy_https")
+	if !check.OK || !strings.Contains(check.Message, "skipped TLS probe") {
+		t.Fatalf("expected skipped TLS probe message, got %+v", check)
 	}
 }
 
@@ -211,57 +250,32 @@ func TestScutilHasManagedResolverMatchesRealSpacing(t *testing.T) {
 	}
 }
 
-func TestResolveExampleHostUsesDSCacheUtilOutput(t *testing.T) {
-	originalExecCommand := execCommand
-	execCommand = fakeExecCommand
-	t.Cleanup(func() { execCommand = originalExecCommand })
+func TestResolveExampleHostUsesDevproxyDNS(t *testing.T) {
+	originalDNSExchange := dnsExchange
+	dnsExchange = func(_ *mdns.Msg, address string) (*mdns.Msg, time.Duration, error) {
+		if address != "127.0.0.1:53535" {
+			t.Fatalf("expected devproxy dns address, got %q", address)
+		}
+		resp := new(mdns.Msg)
+		resp.Answer = []mdns.RR{&mdns.A{A: net.ParseIP("127.0.0.1").To4()}}
+		return resp, 0, nil
+	}
+	t.Cleanup(func() { dnsExchange = originalDNSExchange })
 
 	addr, err := resolveExampleHost(context.Background(), "example.test")
 	if err != nil {
-		t.Fatalf("resolveExampleHost returned error: %v", err)
+		 t.Fatalf("resolveExampleHost returned error: %v", err)
 	}
 	if addr != "127.0.0.1" {
 		t.Fatalf("expected 127.0.0.1, got %q", addr)
 	}
 }
 
-func TestParseDSCacheUtilAddressNoAddress(t *testing.T) {
+func TestParseDNSAnswerAddressNoAddress(t *testing.T) {
 	t.Parallel()
-	if got := parseDSCacheUtilAddress("name: example.test\n"); got != "" {
+	if got := parseDNSAnswerAddress(new(mdns.Msg)); got != "" {
 		t.Fatalf("expected empty address, got %q", got)
 	}
-}
-
-func fakeExecCommand(command string, args ...string) *exec.Cmd {
-	cs := []string{"-test.run=TestHelperProcess", "--", command}
-	cs = append(cs, args...)
-	cmd := exec.Command(os.Args[0], cs...)
-	cmd.Env = []string{"GO_WANT_HELPER_PROCESS=1"}
-	return cmd
-}
-
-func TestHelperProcess(t *testing.T) {
-	if os.Getenv("GO_WANT_HELPER_PROCESS") != "1" {
-		return
-	}
-	args := os.Args
-	sep := -1
-	for i, a := range args {
-		if a == "--" {
-			sep = i
-			break
-		}
-	}
-	if sep == -1 || sep+1 >= len(args) {
-		os.Exit(2)
-	}
-
-	cmd := args[sep+1]
-	if cmd == "dscacheutil" {
-		_, _ = os.Stdout.WriteString("name: example.test\nip_address: 127.0.0.1\n")
-		os.Exit(0)
-	}
-	os.Exit(3)
 }
 
 func assertCheckOK(t *testing.T, report Report, name string) {
