@@ -19,7 +19,7 @@ func TestDashboardRootRendersHealthRoutesConflictsAndSessionErrors(t *testing.T)
 
 	client := &stubClient{
 		status: admin.StatusView{SnapshotVersion: "snap-1", ActiveRoutes: 1, Conflicts: 1},
-		routes: []admin.RouteView{{Hostname: "api.acme.test", OpenURL: "https://api.acme.test", UpstreamScheme: "https", UpstreamHost: "127.0.0.1", UpstreamPort: 8443}},
+		routes: []admin.RouteView{{Hostname: "api.acme.test", OpenURL: "http://api.acme.test", UpstreamScheme: "https", UpstreamHost: "127.0.0.1", UpstreamPort: 8443, FallbackReason: "https runtime is not ready"}},
 		logs: []admin.LogEvent{
 		{Timestamp: time.Now().UTC(), Type: "conflict", Hostname: "api.acme.test", Message: "route conflict detected"},
 		{Timestamp: time.Now().UTC(), Type: "error", Hostname: "", Message: "refresh failed"},
@@ -41,7 +41,25 @@ func TestDashboardRootRendersHealthRoutesConflictsAndSessionErrors(t *testing.T)
 	assertContains(t, body, "api.acme.test")
 	assertContains(t, body, "route conflict detected")
 	assertContains(t, body, "refresh failed")
-	assertContains(t, body, `href="https://api.acme.test"`)
+	assertContains(t, body, `href="http://api.acme.test"`)
+	assertContains(t, body, "https runtime is not ready")
+}
+
+func TestDashboardRootShowsApprovedOfflineCopyWhenStatusUnavailable(t *testing.T) {
+	t.Parallel()
+
+	client := &stubClient{statusErr: errors.New("daemon socket down")}
+	srv := NewServer(Config{ListenAddress: "127.0.0.1:45831", Client: client})
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+
+	srv.Handler().ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 for / when daemon is unavailable, got %d", w.Code)
+	}
+	body := w.Body.String()
+	assertContains(t, body, "DevProxy can’t reach the daemon right now. Ensure the daemon is running, then select Run Doctor for repair guidance.")
+	assertContains(t, body, "Refresh Routes")
 }
 
 func TestDashboardLogsRendersCurrentSessionData(t *testing.T) {
@@ -130,6 +148,7 @@ func TestDashboardRefreshRequiresPost(t *testing.T) {
 
 type stubClient struct {
 	status       admin.StatusView
+	statusErr    error
 	routes       []admin.RouteView
 	logs         []admin.LogEvent
 	doctor       admin.DoctorView
@@ -137,7 +156,12 @@ type stubClient struct {
 	refreshReason string
 }
 
-func (s *stubClient) Status(context.Context) (admin.StatusView, error) { return s.status, nil }
+func (s *stubClient) Status(context.Context) (admin.StatusView, error) {
+	if s.statusErr != nil {
+		return admin.StatusView{}, s.statusErr
+	}
+	return s.status, nil
+}
 func (s *stubClient) Routes(context.Context) ([]admin.RouteView, error) { return s.routes, nil }
 func (s *stubClient) Logs(context.Context) ([]admin.LogEvent, error) { return s.logs, nil }
 func (s *stubClient) Doctor(context.Context) (admin.DoctorView, error) { return s.doctor, nil }
