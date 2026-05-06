@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -194,6 +195,73 @@ func TestDoctorPassesManagedHostToProxyChecks(t *testing.T) {
 	if httpHost != "example.test" || httpsHost != "example.test" {
 		t.Fatalf("expected managed host to be forwarded, got http=%q https=%q", httpHost, httpsHost)
 	}
+}
+
+func TestScutilHasManagedResolverMatchesRealSpacing(t *testing.T) {
+	t.Parallel()
+
+	scutil := `resolver #8
+  domain   : test
+  nameserver[0] : 127.0.0.1
+  port     : 53535
+`
+
+	if !scutilHasManagedResolver(scutil, "test") {
+		t.Fatalf("expected resolver parser to match scutil spacing variant")
+	}
+}
+
+func TestResolveExampleHostUsesDSCacheUtilOutput(t *testing.T) {
+	originalExecCommand := execCommand
+	execCommand = fakeExecCommand
+	t.Cleanup(func() { execCommand = originalExecCommand })
+
+	addr, err := resolveExampleHost(context.Background(), "example.test")
+	if err != nil {
+		t.Fatalf("resolveExampleHost returned error: %v", err)
+	}
+	if addr != "127.0.0.1" {
+		t.Fatalf("expected 127.0.0.1, got %q", addr)
+	}
+}
+
+func TestParseDSCacheUtilAddressNoAddress(t *testing.T) {
+	t.Parallel()
+	if got := parseDSCacheUtilAddress("name: example.test\n"); got != "" {
+		t.Fatalf("expected empty address, got %q", got)
+	}
+}
+
+func fakeExecCommand(command string, args ...string) *exec.Cmd {
+	cs := []string{"-test.run=TestHelperProcess", "--", command}
+	cs = append(cs, args...)
+	cmd := exec.Command(os.Args[0], cs...)
+	cmd.Env = []string{"GO_WANT_HELPER_PROCESS=1"}
+	return cmd
+}
+
+func TestHelperProcess(t *testing.T) {
+	if os.Getenv("GO_WANT_HELPER_PROCESS") != "1" {
+		return
+	}
+	args := os.Args
+	sep := -1
+	for i, a := range args {
+		if a == "--" {
+			sep = i
+			break
+		}
+	}
+	if sep == -1 || sep+1 >= len(args) {
+		os.Exit(2)
+	}
+
+	cmd := args[sep+1]
+	if cmd == "dscacheutil" {
+		_, _ = os.Stdout.WriteString("name: example.test\nip_address: 127.0.0.1\n")
+		os.Exit(0)
+	}
+	os.Exit(3)
 }
 
 func assertCheckOK(t *testing.T, report Report, name string) {

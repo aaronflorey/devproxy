@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"os/exec"
+	"regexp"
 	"strings"
 
 	"github.com/mochaka/devproxy/internal/admin"
@@ -45,6 +46,8 @@ type Dependencies struct {
 }
 
 type Checker struct{ deps Dependencies }
+
+var execCommand = exec.Command
 
 func NewChecker(deps Dependencies) *Checker {
 	if deps.CheckDocker == nil {
@@ -275,25 +278,50 @@ func checkLocalCA(context.Context) error {
 }
 
 func readResolverState(context.Context) (ResolverState, error) {
-	cmd := exec.Command("scutil", "--dns")
+	cmd := execCommand("scutil", "--dns")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return ResolverState{}, fmt.Errorf("scutil --dns failed: %w: %s", err, strings.TrimSpace(string(out)))
 	}
 	text := string(out)
-	active := strings.Contains(text, "domain : test") || strings.Contains(text, "domain : .test")
+	active := scutilHasManagedResolver(text, "test")
 	return ResolverState{ManagedSuffix: "test", ActiveResolver: active, Nameservers: []string{"127.0.0.1"}, Evidence: "scutil --dns inspected"}, nil
 }
 
 func resolveExampleHost(_ context.Context, host string) (string, error) {
-	addrs, err := net.LookupHost(host)
+	cmd := execCommand("dscacheutil", "-q", "host", "-a", "name", host)
+	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return "", fmt.Errorf("lookup %s failed: %w", host, err)
+		return "", fmt.Errorf("lookup %s failed via dscacheutil: %w: %s", host, err, strings.TrimSpace(string(out)))
 	}
-	if len(addrs) == 0 {
-		return "", fmt.Errorf("lookup %s returned no addresses", host)
+	addr := parseDSCacheUtilAddress(string(out))
+	if addr == "" {
+		return "", fmt.Errorf("lookup %s returned no addresses via dscacheutil", host)
 	}
-	return addrs[0], nil
+	return addr, nil
+}
+
+func scutilHasManagedResolver(scutilOutput, suffix string) bool {
+	trimmedSuffix := strings.Trim(strings.TrimSpace(suffix), ".")
+	if trimmedSuffix == "" {
+		return false
+	}
+	pattern := fmt.Sprintf(`(?m)^\s*domain\s*:\s*\.?%s\s*$`, regexp.QuoteMeta(trimmedSuffix))
+	return regexp.MustCompile(pattern).MatchString(scutilOutput)
+}
+
+func parseDSCacheUtilAddress(output string) string {
+	for _, line := range strings.Split(output, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if !strings.HasPrefix(strings.ToLower(trimmed), "ip_address:") {
+			continue
+		}
+		value := strings.TrimSpace(strings.TrimPrefix(trimmed, "ip_address:"))
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func readNetworkHealth(ctx context.Context) (admin.NetworkRuntimeHealth, error) {
