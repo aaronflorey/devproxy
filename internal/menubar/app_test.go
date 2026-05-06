@@ -30,6 +30,12 @@ func TestMenubarBuildStateFromAdminData(t *testing.T) {
 	if len(state.RouteItems) != 2 {
 		t.Fatalf("expected 2 route items, got %d", len(state.RouteItems))
 	}
+	if state.RouteItems[0].Hostname != "api.acme.test" {
+		t.Fatalf("expected first route hostname pass-through, got %q", state.RouteItems[0].Hostname)
+	}
+	if state.RouteItems[1].Hostname != "acme.test" {
+		t.Fatalf("expected second route hostname pass-through, got %q", state.RouteItems[1].Hostname)
+	}
 	if state.RouteItems[0].OpenURL != "https://api.acme.test" {
 		t.Fatalf("expected first route OpenURL pass-through, got %q", state.RouteItems[0].OpenURL)
 	}
