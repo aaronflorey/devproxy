@@ -212,6 +212,8 @@ func TestPlistIncludesEnvironmentPath(t *testing.T) {
 		Label:     "com.devproxy.daemon",
 		Program:   "/usr/local/bin/devproxy",
 		Arguments: []string{"daemon"},
+		StdoutLog: "/var/log/devproxy/daemon.stdout.log",
+		StderrLog: "/var/log/devproxy/daemon.stderr.log",
 	})
 
 	if !strings.Contains(plist, "<key>EnvironmentVariables</key>") {
@@ -222,6 +224,12 @@ func TestPlistIncludesEnvironmentPath(t *testing.T) {
 	}
 	if !strings.Contains(plist, launchdDefaultPath) {
 		t.Fatalf("expected launchd plist to include default PATH %q", launchdDefaultPath)
+	}
+	if !strings.Contains(plist, "<key>StandardOutPath</key>") || !strings.Contains(plist, "/var/log/devproxy/daemon.stdout.log") {
+		t.Fatalf("expected launchd plist to include stdout log path")
+	}
+	if !strings.Contains(plist, "<key>StandardErrorPath</key>") || !strings.Contains(plist, "/var/log/devproxy/daemon.stderr.log") {
+		t.Fatalf("expected launchd plist to include stderr log path")
 	}
 }
 
