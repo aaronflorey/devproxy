@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: verifying
-stopped_at: Phase 4 context gathered (assumptions mode)
-last_updated: "2026-05-06T01:46:15.570Z"
+status: executing
+stopped_at: Phase 4 UI-SPEC approved
+last_updated: "2026-05-06T02:20:43.912Z"
 last_activity: 2026-05-06
 progress:
   total_phases: 4
   completed_phases: 3
-  total_plans: 20
-  completed_plans: 26
+  total_plans: 24
+  completed_plans: 27
   percent: 100
 ---
 
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-05)
 
 **Core value:** A developer can run `docker compose up` and immediately use predictable local domains for each routable service without editing Compose files, `/etc/hosts`, or local proxy configs.
-**Current focus:** Phase 03 — install-daemon-lifecycle-and-diagnostics
+**Current focus:** Phase 04 — menu-bar-and-dashboard-ux
 
 ## Current Position
 
-Phase: 03 (install-daemon-lifecycle-and-diagnostics) — EXECUTING
-Plan: 4 of 4
-Status: Phase complete — ready for verification
+Phase: 04 (menu-bar-and-dashboard-ux) — EXECUTING
+Plan: 2 of 4
+Status: Ready to execute
 Last activity: 2026-05-06
 
 Progress: [██████████] 100%
@@ -62,6 +62,7 @@ Progress: [██████████] 100%
 | Phase 03 P04 | 3 min | 2 tasks | 8 files |
 | Phase 03 P05 | 24 | 2 tasks | 8 files |
 | Phase 03 P06 | 18 | 2 tasks | 2 files |
+| Phase 04 P01 | 5 min | 2 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -98,6 +99,8 @@ Recent decisions affecting current work:
 - [Phase 03]: Treat known launchd missing-state responses as non-fatal teardown outcomes. — Allows uninstall cleanup to continue safely when services were already removed.
 - [Phase 03]: Gate managed proxy diagnostics on resolver-active plus daemon runtime status. — Avoids misleading doctor output when control-plane truth is unavailable.
 - [Phase 03]: Use managed hostname URLs and SNI while dialing local listener ports. — Makes TLS/proxy diagnostics reflect real managed-domain behavior instead of loopback SAN noise.
+- [Phase ?]: Expose startup controls via daemon-owned /startup API with fixed daemon|menubar role validation. — Mitigates request tampering and keeps daemon as single control surface.
+- [Phase ?]: Project route OpenURL/PreferredScheme/FallbackReason from daemon runtime readiness instead of UI-side URL computation. — Ensures deterministic route opening behavior across menu bar and dashboard.
 
 ### Pending Todos
 
@@ -117,6 +120,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-05-06T01:46:15.558Z
-Stopped at: Phase 4 context gathered (assumptions mode)
-Resume file: .planning/phases/04-menu-bar-and-dashboard-ux/04-CONTEXT.md
+Last session: 2026-05-06T02:20:23.425Z
+Stopped at: Phase 4 UI-SPEC approved
+Resume file: None

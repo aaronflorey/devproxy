@@ -110,8 +110,21 @@ Plans:
   2. Developer can trigger refresh, open dashboard/logs, run doctor, pause routing, and toggle start-at-login from menu bar controls.
   3. Developer can open a selected route from the menu bar over HTTPS when enabled for that route, otherwise HTTP.
   4. Developer can open a local dashboard that shows daemon health, active routes, recent conflicts, and recent daemon-session errors.
-**Plans**: TBD
+**Plans**: 4 plans
 **UI hint**: yes
+
+Plans:
+**Wave 1**
+- [ ] 04-01-PLAN.md -- Extend daemon/admin API contracts for menu controls, route-open metadata, and role-aware start-at-login state.
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 04-02-PLAN.md -- Add the localhost dashboard command and server-rendered UI backed only by admin API projections, including recent conflicts/errors and route links.
+
+**Wave 3** *(blocked on Waves 1-2 completion as declared by plan dependencies)*
+- [ ] 04-03-PLAN.md -- Add `devproxy menubar` runtime with systray actions for refresh, doctor, logs, pause/resume, route-open, dashboard launch, and role-aware start-at-login state.
+
+**Wave 4** *(blocked on Waves 2-3 completion as declared by plan dependencies)*
+- [ ] 04-04-PLAN.md -- Harden UI fallbacks, launch/open failure handling, and end-to-end dashboard/menubar integration coverage.
 
 ## Progress
 
@@ -123,4 +136,4 @@ Phases execute in numeric order: 2 → 2.1 → 2.2 → 3 → 3.1 → 4
 | 1. Discovery, Domains, and Conflict Policy | 0/5 | Planned | - |
 | 2. Local DNS, Proxy, and HTTPS Serving | 5/5 | Complete   | 2026-05-05 |
 | 3. Install, Daemon Lifecycle, and Diagnostics | 0/4 | Not started | - |
-| 4. Menu Bar and Dashboard UX | 0/TBD | Not started | - |
+| 4. Menu Bar and Dashboard UX | 0/4 | Not started | - |

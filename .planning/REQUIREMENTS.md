@@ -51,10 +51,10 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Menu Bar And Dashboard
 
-- [ ] **UI-01**: Developer can view daemon status and active routes from the macOS menu bar app
-- [ ] **UI-02**: Developer can refresh routes, open the dashboard, open logs, run doctor, pause routing, and toggle start-at-login from the menu bar
-- [ ] **UI-03**: Developer can open a route from the menu bar using HTTPS when HTTPS is enabled for that route, otherwise HTTP
-- [ ] **UI-04**: Developer can open a local dashboard that shows daemon health, active routes, recent conflicts, and recent errors from the current daemon session
+- [x] **UI-01**: Developer can view daemon status and active routes from the macOS menu bar app
+- [x] **UI-02**: Developer can refresh routes, open the dashboard, open logs, run doctor, pause routing, and toggle start-at-login from the menu bar
+- [x] **UI-03**: Developer can open a route from the menu bar using HTTPS when HTTPS is enabled for that route, otherwise HTTP
+- [x] **UI-04**: Developer can open a local dashboard that shows daemon health, active routes, recent conflicts, and recent errors from the current daemon session
 
 ## v2 Requirements
 
@@ -115,10 +115,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | OPS-07 | Phase 3 | Complete |
 | OPS-08 | Phase 3 | Complete |
 | OPS-09 | Phase 3 | Complete |
-| UI-01 | Phase 4 | Pending |
-| UI-02 | Phase 4 | Pending |
-| UI-03 | Phase 4 | Pending |
-| UI-04 | Phase 4 | Pending |
+| UI-01 | Phase 4 | Complete |
+| UI-02 | Phase 4 | Complete |
+| UI-03 | Phase 4 | Complete |
+| UI-04 | Phase 4 | Complete |
 
 **Coverage:**
 - v1 requirements: 34 total
