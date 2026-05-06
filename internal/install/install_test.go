@@ -71,6 +71,7 @@ func TestInstallInstallsMenubarOnlyWhenOptedIn(t *testing.T) {
 		StartDaemonService:    func(LaunchdServiceConfig) error { return nil },
 		InstallMenubarService: func(LaunchdServiceConfig) error { menubarInstallCount++; return nil },
 		StartMenubarService:   func(LaunchdServiceConfig) error { return nil },
+		ResolveGUIUser:        func() (int, string, error) { return 501, "/Users/dev", nil },
 	})
 
 	if err := installer.Install(context.Background(), Options{Suffix: "test", WithMenubar: false}); err != nil {
@@ -103,15 +104,78 @@ func TestLaunchdRolesUseSeparateDomainsAndLabels(t *testing.T) {
 		t.Fatalf("expected daemon plist under LaunchDaemons, got %q", daemonCfg.PlistPath)
 	}
 
-	agentCfg := MenubarServiceConfig(paths)
+	agentCfg := MenubarServiceConfig(paths, 501)
 	if agentCfg.Domain != DomainAgent {
 		t.Fatalf("expected menubar domain %q, got %q", DomainAgent, agentCfg.Domain)
+	}
+	if agentCfg.AgentUID != 501 {
+		t.Fatalf("expected menubar uid %d, got %d", 501, agentCfg.AgentUID)
 	}
 	if agentCfg.Label == "" || !strings.Contains(agentCfg.Label, "menubar") {
 		t.Fatalf("expected menubar label to include menubar role, got %q", agentCfg.Label)
 	}
 	if !strings.Contains(agentCfg.PlistPath, filepath.Join(paths.UserLibraryDir, "LaunchAgents")) {
 		t.Fatalf("expected menubar plist under user LaunchAgents, got %q", agentCfg.PlistPath)
+	}
+}
+
+func TestInstallWithMenubarTargetsResolvedGUIUser(t *testing.T) {
+	t.Parallel()
+
+	paths := DefaultPaths()
+	var gotInstallCfg LaunchdServiceConfig
+	var gotStartCfg LaunchdServiceConfig
+
+	installer := NewInstaller(Dependencies{
+		CurrentEUID:           func() int { return 0 },
+		EnsurePaths:           func(InstallPaths) error { return nil },
+		WriteResolver:         func(ResolverConfig) error { return nil },
+		BootstrapCertificates: func(context.Context) error { return nil },
+		InstallDaemonService:  func(LaunchdServiceConfig) error { return nil },
+		StartDaemonService:    func(LaunchdServiceConfig) error { return nil },
+		ResolveGUIUser:        func() (int, string, error) { return 502, "/Users/alice", nil },
+		InstallMenubarService: func(cfg LaunchdServiceConfig) error { gotInstallCfg = cfg; return nil },
+		StartMenubarService:   func(cfg LaunchdServiceConfig) error { gotStartCfg = cfg; return nil },
+	})
+
+	err := installer.Install(context.Background(), Options{Suffix: "test", WithMenubar: true, Paths: paths})
+	if err != nil {
+		t.Fatalf("install failed: %v", err)
+	}
+
+	if gotInstallCfg.AgentUID != 502 || gotStartCfg.AgentUID != 502 {
+		t.Fatalf("expected menubar agent uid 502 for install/start, got install=%d start=%d", gotInstallCfg.AgentUID, gotStartCfg.AgentUID)
+	}
+	wantPlistPath := filepath.Join("/Users/alice", "Library", "LaunchAgents", "com.devproxy.menubar.plist")
+	if gotInstallCfg.PlistPath != wantPlistPath || gotStartCfg.PlistPath != wantPlistPath {
+		t.Fatalf("expected menubar plist path %q, got install=%q start=%q", wantPlistPath, gotInstallCfg.PlistPath, gotStartCfg.PlistPath)
+	}
+}
+
+func TestInstallWithMenubarFailsExplicitlyWithoutGUIUser(t *testing.T) {
+	t.Parallel()
+
+	installer := NewInstaller(Dependencies{
+		CurrentEUID:           func() int { return 0 },
+		EnsurePaths:           func(InstallPaths) error { return nil },
+		WriteResolver:         func(ResolverConfig) error { return nil },
+		BootstrapCertificates: func(context.Context) error { return nil },
+		InstallDaemonService:  func(LaunchdServiceConfig) error { return nil },
+		StartDaemonService:    func(LaunchdServiceConfig) error { return nil },
+		ResolveGUIUser: func() (int, string, error) {
+			return 0, "", errors.New("no active GUI user session found; log into macOS desktop and re-run install --with-menubar as sudo")
+		},
+	})
+
+	err := installer.Install(context.Background(), Options{Suffix: "test", WithMenubar: true})
+	if err == nil {
+		t.Fatalf("expected install error when GUI user cannot be resolved")
+	}
+	if !strings.Contains(err.Error(), "resolve GUI user for menubar service") {
+		t.Fatalf("expected explicit menubar GUI resolution context, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "no active GUI user session found") {
+		t.Fatalf("expected actionable no-GUI-user message, got %v", err)
 	}
 }
 

@@ -88,7 +88,7 @@ func (u *Uninstaller) Uninstall(ctx context.Context, opts UninstallOptions) erro
 		return fmt.Errorf("uninstall daemon service: %w", err)
 	}
 	if opts.WithMenubar {
-		menubarCfg := MenubarServiceConfig(paths)
+		menubarCfg := MenubarServiceConfig(paths, os.Getuid())
 		if err := u.deps.StopMenubarService(ctx, menubarCfg); err != nil && !isAlreadyRemovedServiceState(err) {
 			return fmt.Errorf("stop menubar service: %w", err)
 		}
