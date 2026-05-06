@@ -4,13 +4,13 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Phase 4 UI-SPEC approved
-last_updated: "2026-05-06T02:20:43.912Z"
+last_updated: "2026-05-06T02:27:18.801Z"
 last_activity: 2026-05-06
 progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 24
-  completed_plans: 27
+  completed_plans: 28
   percent: 100
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-05-05)
 ## Current Position
 
 Phase: 04 (menu-bar-and-dashboard-ux) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 Status: Ready to execute
 Last activity: 2026-05-06
 
@@ -63,6 +63,7 @@ Progress: [██████████] 100%
 | Phase 03 P05 | 24 | 2 tasks | 8 files |
 | Phase 03 P06 | 18 | 2 tasks | 2 files |
 | Phase 04 P01 | 5 min | 2 tasks | 11 files |
+| Phase 04 P02 | 3 min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -101,6 +102,9 @@ Recent decisions affecting current work:
 - [Phase 03]: Use managed hostname URLs and SNI while dialing local listener ports. — Makes TLS/proxy diagnostics reflect real managed-domain behavior instead of loopback SAN noise.
 - [Phase ?]: Expose startup controls via daemon-owned /startup API with fixed daemon|menubar role validation. — Mitigates request tampering and keeps daemon as single control surface.
 - [Phase ?]: Project route OpenURL/PreferredScheme/FallbackReason from daemon runtime readiness instead of UI-side URL computation. — Ensures deterministic route opening behavior across menu bar and dashboard.
+- [Phase ?]: Dashboard localhost bind defaults to 127.0.0.1:45831 with host validation
+- [Phase ?]: Dashboard route anchors consume admin-provided OpenURL values directly
+- [Phase ?]: Refresh endpoint is POST-only at /actions/refresh and redirects with flash status
 
 ### Pending Todos
 
@@ -120,6 +124,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-05-06T02:20:23.425Z
+Last session: 2026-05-06T02:26:46.278Z
 Stopped at: Phase 4 UI-SPEC approved
 Resume file: None
