@@ -123,6 +123,18 @@ func TestMenubarOfflineStateUsesApprovedCopyAndKeepsRepairActions(t *testing.T) 
 	}
 }
 
+func TestMenubarStartupSummaryPreservesFailureStatusMessage(t *testing.T) {
+	roles := []adminapi.StartupRoleStatus{
+		{Role: "daemon", StatusMessage: "enabled"},
+		{Role: "menubar", StatusMessage: "toggle failed: launchctl unavailable"},
+	}
+
+	state := buildMenuState(admin.StatusView{ActiveRoutes: 1}, nil, roles)
+	if got, want := state.StartupLine, "Startup — daemon: enabled | menubar: toggle failed: launchctl unavailable"; got != want {
+		t.Fatalf("startup failure message mismatch: got %q want %q", got, want)
+	}
+}
+
 type stubAdminClient struct {
 	refreshReason string
 	refreshErr    error
