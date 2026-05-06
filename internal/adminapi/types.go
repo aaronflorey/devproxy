@@ -37,6 +37,41 @@ type RefreshResponse struct {
 	Error     string    `json:"error,omitempty"`
 }
 
+type RoutingPauseResumeResponse struct {
+	Paused bool   `json:"paused"`
+	Error  string `json:"error,omitempty"`
+}
+
+type StartupRoleStatus struct {
+	Role          string `json:"role"`
+	Domain        string `json:"domain"`
+	Label         string `json:"label"`
+	Installed     bool   `json:"installed"`
+	Running       bool   `json:"running"`
+	Toggleable    bool   `json:"toggleable"`
+	StatusMessage string `json:"status_message"`
+}
+
+type StartupStatusResponse struct {
+	Roles []StartupRoleStatus `json:"roles"`
+}
+
+type StartupToggleRequest struct {
+	Role    string `json:"role"`
+	Enabled bool   `json:"enabled"`
+}
+
+type StartupToggleResponse struct {
+	Role         string `json:"role"`
+	Enabled      bool   `json:"enabled"`
+	AffectedRole string `json:"affected_role"`
+	Error        string `json:"error,omitempty"`
+}
+
+type SessionIssuesResponse struct {
+	Issues []admin.SessionIssue `json:"issues"`
+}
+
 type CommandFactory func() NamedCommand
 
 type NamedCommand interface {

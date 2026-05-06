@@ -2,32 +2,38 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os/exec"
 	"path/filepath"
+	"sync"
+	"time"
 
 	"github.com/mochaka/devproxy/internal/admin"
 	"github.com/mochaka/devproxy/internal/adminapi"
 	"github.com/mochaka/devproxy/internal/certs"
 	"github.com/mochaka/devproxy/internal/config"
+	"github.com/mochaka/devproxy/internal/install"
 )
 
 type AppConfig struct {
-	AdminSocketPath string
-	HTTPAddress     string
-	HTTPSAddress    string
-	Config          config.Config
-	DockerPing      func(context.Context) error
-	EnsureMKCert    func(context.Context) error
+	AdminSocketPath     string
+	HTTPAddress         string
+	HTTPSAddress        string
+	Config              config.Config
+	DockerPing          func(context.Context) error
+	EnsureMKCert        func(context.Context) error
 	BuildNetworkRuntime func(context.Context) error
 }
 
 type App struct {
-	cfg       AppConfig
+	cfg        AppConfig
 	reconciler *Reconciler
-	watcher   *Watcher
-	network   *NetworkRuntime
-	server    *adminapi.Server
+	watcher    *Watcher
+	network    *NetworkRuntime
+	server     *adminapi.Server
+	issueMu    sync.Mutex
+	issues     []admin.SessionIssue
 }
 
 func NewApp(cfg AppConfig) *App {
@@ -97,6 +103,9 @@ func (a *App) Start(ctx context.Context) error {
 			_ = reason
 			return a.Refresh(ctx)
 		},
+		SetRoutingPaused:  a.setRoutingPaused,
+		StartupStatus:     a.startupStatus,
+		SetStartupEnabled: a.setStartupEnabled,
 	})
 	if err != nil {
 		_ = a.network.Close()
@@ -122,6 +131,60 @@ func (a *App) Refresh(context.Context) error {
 	return a.reconciler.RebuildSnapshot(nil)
 }
 
+func (a *App) setRoutingPaused(_ context.Context, paused bool) error {
+	a.reconciler.SetRoutingPaused(paused)
+	return nil
+}
+
+func (a *App) startupStatus(context.Context) ([]admin.StartupRoleStatus, error) {
+	statuses := install.StartupStatuses(install.DefaultPaths())
+	out := make([]admin.StartupRoleStatus, 0, len(statuses))
+	for _, item := range statuses {
+		out = append(out, admin.StartupRoleStatus{
+			Role:          item.Role,
+			Domain:        item.Domain,
+			Label:         item.Label,
+			Installed:     item.Installed,
+			Running:       item.Running,
+			Toggleable:    item.Toggleable,
+			StatusMessage: item.StatusMessage,
+		})
+	}
+	return out, nil
+}
+
+func (a *App) setStartupEnabled(ctx context.Context, role string, enabled bool) (admin.StartupRoleStatus, error) {
+	if role != "daemon" && role != "menubar" {
+		return admin.StartupRoleStatus{}, fmt.Errorf("unsupported startup role %q", role)
+	}
+	if role == "daemon" {
+		msg := "daemon startup is managed by system launchd and cannot be toggled from UI"
+		a.recordIssue("daemon", "startup-toggle", msg)
+		return admin.StartupRoleStatus{Role: "daemon", Domain: "system", Label: "com.devproxy.daemon", Installed: true, Running: true, Toggleable: false, StatusMessage: msg}, errors.New(msg)
+	}
+
+	if err := install.SetMenubarStartupEnabled(ctx, install.DefaultPaths(), enabled); err != nil {
+		a.recordIssue(role, "startup-toggle", err.Error())
+		return admin.StartupRoleStatus{}, err
+	}
+
+	for _, st := range install.StartupStatuses(install.DefaultPaths()) {
+		if st.Role == role {
+			return admin.StartupRoleStatus{Role: st.Role, Domain: st.Domain, Label: st.Label, Installed: st.Installed, Running: st.Running, Toggleable: st.Toggleable, StatusMessage: st.StatusMessage}, nil
+		}
+	}
+	return admin.StartupRoleStatus{Role: role}, nil
+}
+
+func (a *App) recordIssue(role, action, message string) {
+	a.issueMu.Lock()
+	defer a.issueMu.Unlock()
+	a.issues = append(a.issues, admin.SessionIssue{Timestamp: time.Now().UTC(), Role: role, Action: action, Message: message})
+	if len(a.issues) > admin.SessionIssueLimit {
+		a.issues = a.issues[len(a.issues)-admin.SessionIssueLimit:]
+	}
+}
+
 func (a *App) Close(ctx context.Context) error {
 	if a.server != nil {
 		_ = a.server.Close(ctx)
@@ -141,12 +204,12 @@ func (a *App) stateSnapshot() adminapi.StateSnapshot {
 
 	watcher := a.watcher.Health()
 	status := admin.BuildStatus(snapshot, admin.WatcherHealth{Connected: watcher.Connected, LastDisconnect: watcher.LastDisconnect, LastReconnectSync: watcher.LastReconnectSync}, a.reconciler.LastSync(), admin.NetworkRuntimeStatusFromHealth(admin.NetworkRuntimeHealth{
-		DNS: admin.ListenerStatus{Enabled: runtimeHealth.DNS.Enabled, Bound: runtimeHealth.DNS.Bound, BindAddress: runtimeHealth.DNS.BindAddress, LastError: runtimeHealth.DNS.LastError},
-		HTTP: admin.ListenerStatus{Enabled: runtimeHealth.HTTP.Enabled, Bound: runtimeHealth.HTTP.Bound, BindAddress: runtimeHealth.HTTP.BindAddress, LastError: runtimeHealth.HTTP.LastError},
-		HTTPS: admin.ListenerStatus{Enabled: runtimeHealth.HTTPS.Enabled, Bound: runtimeHealth.HTTPS.Bound, BindAddress: runtimeHealth.HTTPS.BindAddress, LastError: runtimeHealth.HTTPS.LastError},
-		Paused: runtimeHealth.Paused,
+		DNS:              admin.ListenerStatus{Enabled: runtimeHealth.DNS.Enabled, Bound: runtimeHealth.DNS.Bound, BindAddress: runtimeHealth.DNS.BindAddress, LastError: runtimeHealth.DNS.LastError},
+		HTTP:             admin.ListenerStatus{Enabled: runtimeHealth.HTTP.Enabled, Bound: runtimeHealth.HTTP.Bound, BindAddress: runtimeHealth.HTTP.BindAddress, LastError: runtimeHealth.HTTP.LastError},
+		HTTPS:            admin.ListenerStatus{Enabled: runtimeHealth.HTTPS.Enabled, Bound: runtimeHealth.HTTPS.Bound, BindAddress: runtimeHealth.HTTPS.BindAddress, LastError: runtimeHealth.HTTPS.LastError},
+		Paused:           runtimeHealth.Paused,
 		CertificateReady: runtimeHealth.CertificateReady,
-		ManagedSuffix: runtimeHealth.ManagedSuffix,
+		ManagedSuffix:    runtimeHealth.ManagedSuffix,
 	}))
 	doctor := admin.BuildDoctor(snapshot, admin.NetworkDoctorStatus{
 		DNSHealthy:       runtimeHealth.DNS.Bound,
@@ -157,8 +220,14 @@ func (a *App) stateSnapshot() adminapi.StateSnapshot {
 		ManagedSuffix:    runtimeHealth.ManagedSuffix,
 	})
 	logs := admin.BuildSessionEvents(snapshot)
+	startupRoles, _ := a.startupStatus(context.Background())
+	status.StartupRoles = startupRoles
 
-	return adminapi.StateSnapshot{Snapshot: snapshot, Status: status, Doctor: doctor, Logs: logs}
+	a.issueMu.Lock()
+	issues := append([]admin.SessionIssue(nil), a.issues...)
+	a.issueMu.Unlock()
+
+	return adminapi.StateSnapshot{Snapshot: snapshot, Status: status, Doctor: doctor, Logs: logs, Issues: issues}
 }
 
 func DefaultDockerPing(context.Context) error { return nil }

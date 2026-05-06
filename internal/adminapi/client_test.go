@@ -28,7 +28,7 @@ func TestClientStatusRoutesAndLogsDecodePayloads(t *testing.T) {
 			},
 		},
 		Status: admin.StatusView{SnapshotVersion: "v1", ActiveRoutes: 1},
-		Logs: []admin.LogEvent{{Type: "route", Message: "active route", Hostname: "api.acme.test"}},
+		Logs:   []admin.LogEvent{{Type: "route", Message: "active route", Hostname: "api.acme.test"}},
 	}
 
 	server, socketPath := mustStartTestServer(t, state)

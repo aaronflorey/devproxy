@@ -58,7 +58,7 @@ func TestAdminAPIUsesSharedReadModelsAndSerializesJSON(t *testing.T) {
 			Routes: map[string]routing.Route{
 				"api.acme.test": {
 					Hostname: "api.acme.test",
-					Winner: routing.Candidate{ContainerName: "acme-api-1"},
+					Winner:   routing.Candidate{ContainerName: "acme-api-1"},
 					Upstream: routing.Upstream{Scheme: "http", Host: "127.0.0.1", Port: 8080},
 				},
 			},
@@ -193,7 +193,7 @@ func TestServerRoutingPauseResumeAndStartupEndpoints_D02_D03(t *testing.T) {
 	client := unixSocketClient(socketPath)
 
 	t.Run("POST /routing/pause returns explicit paused state", func(t *testing.T) {
-		resp := postJSON(t, client, "http://unix/routing/pause", `{}`)
+		resp := postJSONRequest(t, client, "http://unix/routing/pause", `{}`)
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("expected 200 from /routing/pause, got %d", resp.StatusCode)
 		}
@@ -208,7 +208,7 @@ func TestServerRoutingPauseResumeAndStartupEndpoints_D02_D03(t *testing.T) {
 	})
 
 	t.Run("POST /routing/resume returns explicit paused=false state", func(t *testing.T) {
-		resp := postJSON(t, client, "http://unix/routing/resume", `{}`)
+		resp := postJSONRequest(t, client, "http://unix/routing/resume", `{}`)
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("expected 200 from /routing/resume, got %d", resp.StatusCode)
 		}
@@ -243,7 +243,7 @@ func TestServerRoutingPauseResumeAndStartupEndpoints_D02_D03(t *testing.T) {
 	})
 
 	t.Run("POST /startup toggles only requested role", func(t *testing.T) {
-		resp := postJSON(t, client, "http://unix/startup", `{"role":"menubar","enabled":true}`)
+		resp := postJSONRequest(t, client, "http://unix/startup", `{"role":"menubar","enabled":true}`)
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("expected 200 from /startup toggle, got %d", resp.StatusCode)
 		}
@@ -261,7 +261,7 @@ func TestServerRoutingPauseResumeAndStartupEndpoints_D02_D03(t *testing.T) {
 	})
 }
 
-func postJSON(t *testing.T, client *http.Client, url, body string) *http.Response {
+func postJSONRequest(t *testing.T, client *http.Client, url, body string) *http.Response {
 	t.Helper()
 	resp, err := client.Post(url, "application/json", strings.NewReader(body))
 	if err != nil {
@@ -296,7 +296,7 @@ func TestServerRoutingPauseResumeFailureReturnsStructuredError_D02(t *testing.T)
 	})
 
 	client := unixSocketClient(socketPath)
-	resp := postJSON(t, client, "http://unix/routing/pause", `{}`)
+	resp := postJSONRequest(t, client, "http://unix/routing/pause", `{}`)
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusServiceUnavailable {
 		t.Fatalf("expected 503 from /routing/pause failure, got %d", resp.StatusCode)

@@ -9,6 +9,16 @@ import (
 	"strings"
 )
 
+type StartupRoleStatus struct {
+	Role          string
+	Domain        string
+	Label         string
+	Installed     bool
+	Running       bool
+	Toggleable    bool
+	StatusMessage string
+}
+
 type LaunchdDomain string
 
 const (
@@ -146,4 +156,89 @@ func serviceAlreadyMissing(cfg LaunchdServiceConfig) bool {
 		return false
 	}
 	return isKnownLaunchdMissingState(err.Error())
+}
+
+func StartupStatuses(paths InstallPaths) []StartupRoleStatus {
+	daemonCfg := DaemonServiceConfig(paths)
+	menubarCfg := MenubarServiceConfig(paths)
+
+	daemonInstalled := fileExists(daemonCfg.PlistPath)
+	menubarInstalled := fileExists(menubarCfg.PlistPath)
+
+	daemonRunning := serviceRunning(daemonCfg)
+	menubarRunning := serviceRunning(menubarCfg)
+
+	statuses := []StartupRoleStatus{
+		{
+			Role:          "daemon",
+			Domain:        domainTarget(daemonCfg),
+			Label:         daemonCfg.Label,
+			Installed:     daemonInstalled,
+			Running:       daemonRunning,
+			Toggleable:    false,
+			StatusMessage: daemonStatusMessage(daemonInstalled, daemonRunning),
+		},
+		{
+			Role:          "menubar",
+			Domain:        domainTarget(menubarCfg),
+			Label:         menubarCfg.Label,
+			Installed:     menubarInstalled,
+			Running:       menubarRunning,
+			Toggleable:    true,
+			StatusMessage: menubarStatusMessage(menubarInstalled, menubarRunning),
+		},
+	}
+
+	return statuses
+}
+
+func SetMenubarStartupEnabled(ctx context.Context, paths InstallPaths, enabled bool) error {
+	menubarCfg := MenubarServiceConfig(paths)
+	if enabled {
+		if err := InstallService(menubarCfg); err != nil {
+			return err
+		}
+		if err := StartService(menubarCfg); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	if err := StopService(ctx, menubarCfg); err != nil {
+		return err
+	}
+	if err := UninstallService(ctx, menubarCfg); err != nil {
+		return err
+	}
+	return nil
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
+
+func serviceRunning(cfg LaunchdServiceConfig) bool {
+	err := runLaunchctl("print", fmt.Sprintf("%s/%s", domainTarget(cfg), cfg.Label))
+	return err == nil
+}
+
+func daemonStatusMessage(installed, running bool) string {
+	if !installed {
+		return "Daemon launchd service is not installed"
+	}
+	if running {
+		return "Managed by system launchd"
+	}
+	return "Installed but not currently running"
+}
+
+func menubarStatusMessage(installed, running bool) string {
+	if !installed {
+		return "Does not start at login"
+	}
+	if running {
+		return "Starts at login"
+	}
+	return "Installed for login but not currently running"
 }
