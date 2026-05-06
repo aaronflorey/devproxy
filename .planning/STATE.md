@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: verifying
-stopped_at: Completed 03-03-PLAN.md
-last_updated: "2026-05-05T23:54:42.252Z"
-last_activity: 2026-05-05
+stopped_at: Completed 03-06-PLAN.md
+last_updated: "2026-05-06T00:25:53.639Z"
+last_activity: 2026-05-06
 progress:
   total_phases: 4
   completed_phases: 3
-  total_plans: 17
-  completed_plans: 17
+  total_plans: 19
+  completed_plans: 19
   percent: 100
 ---
 
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-05-05)
 Phase: 03 (install-daemon-lifecycle-and-diagnostics) — EXECUTING
 Plan: 4 of 4
 Status: Phase complete — ready for verification
-Last activity: 2026-05-05
+Last activity: 2026-05-06
 
 Progress: [██████████] 100%
 
@@ -60,6 +60,8 @@ Progress: [██████████] 100%
 | Phase 03 P02 | 4min | 2 tasks | 7 files |
 | Phase 03 P03 | 14 min | 2 tasks | 6 files |
 | Phase 03 P04 | 3 min | 2 tasks | 8 files |
+| Phase 03 P05 | 24 | 2 tasks | 8 files |
+| Phase 03 P06 | 18 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -92,6 +94,10 @@ Recent decisions affecting current work:
 - [Phase ?]: Launchd roles stay split: system daemon by default, menubar only with --with-menubar.
 - [Phase 03]: Doctor validates resolver activation with scutil --dns evidence and live daemon reachability checks. — Aligns diagnostics with real macOS resolver behavior and daemon control-plane state.
 - [Phase 03]: Uninstall performs service stop/unregister and resolver removal before optional cleanup, honoring per-category user choices. — Prevents lingering runtime side-effects while preserving explicit user cleanup scope control.
+- [Phase 03]: Enforced root preflight at both CLI and installer boundaries. — Prevents partial writes to privileged macOS paths and gives explicit sudo guidance.
+- [Phase 03]: Treat known launchd missing-state responses as non-fatal teardown outcomes. — Allows uninstall cleanup to continue safely when services were already removed.
+- [Phase 03]: Gate managed proxy diagnostics on resolver-active plus daemon runtime status. — Avoids misleading doctor output when control-plane truth is unavailable.
+- [Phase 03]: Use managed hostname URLs and SNI while dialing local listener ports. — Makes TLS/proxy diagnostics reflect real managed-domain behavior instead of loopback SAN noise.
 
 ### Pending Todos
 
@@ -111,6 +117,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-05-05T23:54:33.428Z
-Stopped at: Completed 03-03-PLAN.md
+Last session: 2026-05-06T00:25:53.627Z
+Stopped at: Completed 03-06-PLAN.md
 Resume file: None
