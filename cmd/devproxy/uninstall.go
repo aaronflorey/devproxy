@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 
 	"github.com/mochaka/devproxy/internal/install"
@@ -21,6 +22,9 @@ func newUninstallCommand() *cobra.Command {
 		Short: "Uninstall devproxy services and optional local artifacts",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			_ = args
+			if os.Geteuid() != 0 {
+				return fmt.Errorf("devproxy uninstall requires root privileges; rerun with sudo")
+			}
 			scope, err := promptCleanupScope(cmd.InOrStdin(), cmd.OutOrStdout())
 			if err != nil {
 				return err

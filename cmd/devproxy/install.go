@@ -2,6 +2,7 @@ package devproxy
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/mochaka/devproxy/internal/install"
 	"github.com/spf13/cobra"
@@ -19,6 +20,9 @@ func newInstallCommand() *cobra.Command {
 		Short: "Install devproxy lifecycle integration on macOS",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			_ = args
+			if os.Geteuid() != 0 {
+				return fmt.Errorf("devproxy install requires root privileges; rerun with sudo")
+			}
 			cfg := loadedCfg
 			if cfg.DomainSuffix == "" {
 				return fmt.Errorf("config domain_suffix is required")

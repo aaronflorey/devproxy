@@ -59,7 +59,11 @@ func StartService(cfg LaunchdServiceConfig) error {
 }
 
 func StopService(_ context.Context, cfg LaunchdServiceConfig) error {
-	return runLaunchctl("bootout", domainTarget(cfg), cfg.PlistPath)
+	err := runLaunchctl("bootout", domainTarget(cfg), cfg.PlistPath)
+	if err != nil && isKnownLaunchdMissingState(err.Error()) {
+		return nil
+	}
+	return err
 }
 
 func UninstallService(_ context.Context, cfg LaunchdServiceConfig) error {
@@ -111,4 +115,12 @@ func runLaunchctl(args ...string) error {
 		return fmt.Errorf("launchctl %s failed: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(string(output)))
 	}
 	return nil
+}
+
+func isKnownLaunchdMissingState(message string) bool {
+	msg := strings.ToLower(message)
+	return strings.Contains(msg, "could not find service") ||
+		strings.Contains(msg, "service already unloaded") ||
+		strings.Contains(msg, "no such process") ||
+		strings.Contains(msg, "no such file")
 }

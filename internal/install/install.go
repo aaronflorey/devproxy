@@ -3,6 +3,7 @@ package install
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 )
 
@@ -13,6 +14,7 @@ type Options struct {
 }
 
 type Dependencies struct {
+	CurrentEUID           func() int
 	EnsurePaths           func(InstallPaths) error
 	WriteResolver         func(ResolverConfig) error
 	BootstrapCertificates func(context.Context) error
@@ -29,6 +31,9 @@ type Installer struct {
 func NewInstaller(deps Dependencies) *Installer {
 	if deps.EnsurePaths == nil {
 		deps.EnsurePaths = EnsurePaths
+	}
+	if deps.CurrentEUID == nil {
+		deps.CurrentEUID = os.Geteuid
 	}
 	if deps.WriteResolver == nil {
 		deps.WriteResolver = WriteResolver
@@ -59,6 +64,10 @@ func ensureMKCertInstalled(context.Context) error {
 }
 
 func (i *Installer) Install(ctx context.Context, opts Options) error {
+	if i.deps.CurrentEUID() != 0 {
+		return fmt.Errorf("devproxy install requires root privileges; rerun with sudo (needs access to /usr/local/etc/devproxy, /var/lib/devproxy, /var/log/devproxy, /etc/resolver, and /Library/LaunchDaemons)")
+	}
+
 	paths := opts.Paths
 	if paths.ConfigDir == "" {
 		paths = DefaultPaths()
