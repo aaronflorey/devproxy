@@ -28,7 +28,7 @@
       {{else}}
       <ul>
         {{range .Routes}}
-        <li><a href="{{.OpenURL}}">{{.Hostname}}</a> → {{.UpstreamScheme}}://{{.UpstreamHost}}:{{.UpstreamPort}}</li>
+        <li><a href="{{.OpenURL}}">{{.Hostname}}</a> → {{.UpstreamScheme}}://{{.UpstreamHost}}:{{.UpstreamPort}}{{if .FallbackReason}} ({{.FallbackReason}}){{end}}</li>
         {{end}}
       </ul>
       {{end}}
