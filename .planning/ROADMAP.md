@@ -81,7 +81,7 @@ Plans:
   3. Developer can run `devproxy daemon` in foreground and receive explicit startup failures when Docker, certificate prerequisites, or listener ports are unavailable.
   4. Developer can use `status`, `routes`, `refresh`, `doctor`, and `logs` to inspect live daemon health, route state, diagnostics, and current-session logs from the same local admin API source.
   5. Developer can run uninstall and choose to retain or remove config, state, logs, and certificates.
-**Plans**: 4 plans
+**Plans**: 6 plans
 
 Plans:
 **Wave 1**
@@ -93,6 +93,10 @@ Plans:
 
 **Wave 3** *(blocked on Waves 1-2 completion as declared by plan dependencies)*
 - [ ] 03-04-PLAN.md — Add doctor checks for live macOS/runtime health plus selective uninstall cleanup.
+
+**Wave 4** *(gap closure after verification/UAT)*
+- [ ] 03-05-PLAN.md — Add explicit root-privilege lifecycle preflights and idempotent launchd teardown for install/uninstall.
+- [ ] 03-06-PLAN.md — Correct doctor managed-host probing and blocked-runtime diagnostics.
 
 ### Phase 4: Menu Bar and Dashboard UX
 **Goal**: Developers can monitor devproxy and perform core control actions from the menu bar and local dashboard.
