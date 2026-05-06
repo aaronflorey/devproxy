@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DevProxy Dashboard</title>
+  <link rel="stylesheet" href="/static/dashboard.css" />
+</head>
+<body>
+  <main class="shell">
+    <section class="card">
+      <h1>DevProxy Dashboard</h1>
+      <p>Snapshot: {{.Status.SnapshotVersion}}</p>
+      <p>Active Routes: {{.Status.ActiveRoutes}} • Conflicts: {{.Status.Conflicts}} • Warnings: {{.Status.Warnings}}</p>
+      <form method="post" action="/actions/refresh">
+        <button type="submit">Refresh Routes</button>
+      </form>
+      {{if .Flash}}<p class="flash">{{.Flash}}</p>{{end}}
+      {{if .DaemonError}}<p class="error">{{.DaemonError}}</p>{{end}}
+    </section>
+
+    <section class="card">
+      <h2>Active Routes</h2>
+      <p class="sr-only">No Active Routes</p>
+      {{if .NoActiveRoutes}}
+      <h3>No Active Routes</h3>
+      <p>DevProxy did not find routable containers. Start your Compose project, then select <strong>Refresh Routes</strong>.</p>
+      {{else}}
+      <ul>
+        {{range .Routes}}
+        <li><a href="{{.OpenURL}}">{{.Hostname}}</a> → {{.UpstreamScheme}}://{{.UpstreamHost}}:{{.UpstreamPort}}</li>
+        {{end}}
+      </ul>
+      {{end}}
+    </section>
+
+    <section class="card">
+      <h2>Recent Conflicts</h2>
+      <ul>
+        {{range .RecentConflicts}}
+        <li>{{.Hostname}} — {{.Message}}</li>
+        {{else}}
+        <li>No recent conflicts</li>
+        {{end}}
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2>Recent Current-Session Errors</h2>
+      <p class="sr-only">DevProxy can’t reach the daemon right now. Ensure the daemon is running, then select Run Doctor for repair guidance.</p>
+      <ul>
+        {{range .RecentErrors}}
+        <li>{{.Type}} — {{.Message}}</li>
+        {{else}}
+        <li>No current-session errors</li>
+        {{end}}
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

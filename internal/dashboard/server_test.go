@@ -20,8 +20,10 @@ func TestDashboardRootRendersHealthRoutesConflictsAndSessionErrors(t *testing.T)
 	client := &stubClient{
 		status: admin.StatusView{SnapshotVersion: "snap-1", ActiveRoutes: 1, Conflicts: 1},
 		routes: []admin.RouteView{{Hostname: "api.acme.test", OpenURL: "https://api.acme.test", UpstreamScheme: "https", UpstreamHost: "127.0.0.1", UpstreamPort: 8443}},
-		logs: []admin.LogEvent{{Timestamp: time.Now().UTC(), Type: "conflict", Hostname: "api.acme.test", Message: "route conflict detected"}},
-		issues: []admin.SessionIssue{{Timestamp: time.Now().UTC(), Role: "daemon", Action: "refresh", Message: "refresh failed"}},
+		logs: []admin.LogEvent{
+		{Timestamp: time.Now().UTC(), Type: "conflict", Hostname: "api.acme.test", Message: "route conflict detected"},
+		{Timestamp: time.Now().UTC(), Type: "error", Hostname: "", Message: "refresh failed"},
+	},
 	}
 
 	srv := NewServer(Config{ListenAddress: "127.0.0.1:45831", Client: client})
@@ -46,8 +48,10 @@ func TestDashboardLogsRendersCurrentSessionData(t *testing.T) {
 	t.Parallel()
 
 	client := &stubClient{
-		logs: []admin.LogEvent{{Timestamp: time.Now().UTC(), Type: "warning", Hostname: "api.acme.test", Message: "session warning"}},
-		issues: []admin.SessionIssue{{Timestamp: time.Now().UTC(), Role: "daemon", Action: "doctor", Message: "doctor failed"}},
+		logs: []admin.LogEvent{
+			{Timestamp: time.Now().UTC(), Type: "warning", Hostname: "api.acme.test", Message: "session warning"},
+			{Timestamp: time.Now().UTC(), Type: "error", Hostname: "", Message: "doctor failed"},
+		},
 	}
 
 	srv := NewServer(Config{ListenAddress: "127.0.0.1:45831", Client: client})
@@ -129,7 +133,6 @@ type stubClient struct {
 	routes       []admin.RouteView
 	logs         []admin.LogEvent
 	doctor       admin.DoctorView
-	issues       []admin.SessionIssue
 	refreshErr   error
 	refreshReason string
 }
@@ -145,8 +148,6 @@ func (s *stubClient) Refresh(_ context.Context, reason string) (adminapi.Refresh
 	}
 	return adminapi.RefreshResponse{Accepted: true, Refreshed: true, At: time.Now().UTC()}, nil
 }
-func (s *stubClient) SessionIssues(context.Context) ([]admin.SessionIssue, error) { return s.issues, nil }
-
 func assertContains(t *testing.T, body, expected string) {
 	t.Helper()
 	if !strings.Contains(body, expected) {
