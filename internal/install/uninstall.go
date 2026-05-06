@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
 type CleanupScope struct {
@@ -153,9 +152,6 @@ func isAlreadyRemovedServiceState(err error) bool {
 	if err == nil {
 		return false
 	}
-	msg := strings.ToLower(err.Error())
-	return strings.Contains(msg, "could not find service") ||
-		strings.Contains(msg, "service already unloaded") ||
-		strings.Contains(msg, "no such process") ||
-		strings.Contains(msg, "no such file")
+	msg := err.Error()
+	return isKnownLaunchdMissingState(msg) || isBootoutExitFiveIOError(msg)
 }
