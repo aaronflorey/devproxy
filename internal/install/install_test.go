@@ -3,6 +3,7 @@ package install
 import (
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -33,6 +34,7 @@ func TestInstallCreatesPathsResolverBootstrapsCertsAndStartsDaemon(t *testing.T)
 			}
 			return nil
 		},
+		PrepareMenubarBundle: func(string, InstallPaths) error { return nil },
 		InstallDaemonService: func(serviceConfig LaunchdServiceConfig) error {
 			calls = append(calls, "daemon-install")
 			if got, want := serviceConfig.Domain, DomainSystem; got != want {
@@ -77,6 +79,7 @@ func TestInstallFailsWithActionableErrorWhenDaemonBinaryStagingFails(t *testing.
 		PrepareDaemonBinary: func(string) error {
 			return errors.New("source executable is not readable")
 		},
+		PrepareMenubarBundle: func(string, InstallPaths) error { return nil },
 		InstallDaemonService: func(LaunchdServiceConfig) error {
 			daemonInstalled = true
 			return nil
@@ -104,16 +107,18 @@ func TestInstallInstallsMenubarOnlyWhenOptedIn(t *testing.T) {
 
 	var menubarInstallCount int
 	installer := NewInstaller(Dependencies{
-		CurrentEUID:           func() int { return 0 },
-		EnsurePaths:           func(InstallPaths) error { return nil },
-		WriteResolver:         func(ResolverConfig) error { return nil },
-		BootstrapCertificates: func(context.Context) error { return nil },
-		PrepareDaemonBinary:   func(string) error { return nil },
-		InstallDaemonService:  func(LaunchdServiceConfig) error { return nil },
-		StartDaemonService:    func(LaunchdServiceConfig) error { return nil },
-		InstallMenubarService: func(LaunchdServiceConfig) error { menubarInstallCount++; return nil },
-		StartMenubarService:   func(LaunchdServiceConfig) error { return nil },
-		ResolveGUIUser:        func() (int, string, error) { return 501, "/Users/dev", nil },
+		CurrentEUID:             func() int { return 0 },
+		EnsurePaths:             func(InstallPaths) error { return nil },
+		WriteResolver:           func(ResolverConfig) error { return nil },
+		BootstrapCertificates:   func(context.Context) error { return nil },
+		PrepareDaemonBinary:     func(string) error { return nil },
+		PrepareMenubarBundle:    func(string, InstallPaths) error { return nil },
+		InstallDaemonService:    func(LaunchdServiceConfig) error { return nil },
+		StartDaemonService:      func(LaunchdServiceConfig) error { return nil },
+		InstallMenubarService:   func(LaunchdServiceConfig) error { menubarInstallCount++; return nil },
+		StartMenubarService:     func(LaunchdServiceConfig) error { return nil },
+		ResolveGUIUserOwnership: func() (int, int, string, error) { return 501, 20, "/Users/dev", nil },
+		EnsureMenubarOwnership:  func(InstallPaths, LaunchdServiceConfig, int, int) error { return nil },
 	})
 
 	if err := installer.Install(context.Background(), Options{Suffix: "test", WithMenubar: false}); err != nil {
@@ -167,18 +172,30 @@ func TestInstallWithMenubarTargetsResolvedGUIUser(t *testing.T) {
 	paths := DefaultPaths()
 	var gotInstallCfg LaunchdServiceConfig
 	var gotStartCfg LaunchdServiceConfig
+	var gotOwnershipPaths InstallPaths
+	var gotOwnershipCfg LaunchdServiceConfig
+	var gotOwnershipUID int
+	var gotOwnershipGID int
 
 	installer := NewInstaller(Dependencies{
-		CurrentEUID:           func() int { return 0 },
-		EnsurePaths:           func(InstallPaths) error { return nil },
-		WriteResolver:         func(ResolverConfig) error { return nil },
-		BootstrapCertificates: func(context.Context) error { return nil },
-		PrepareDaemonBinary:   func(string) error { return nil },
-		InstallDaemonService:  func(LaunchdServiceConfig) error { return nil },
-		StartDaemonService:    func(LaunchdServiceConfig) error { return nil },
-		ResolveGUIUser:        func() (int, string, error) { return 502, "/Users/alice", nil },
-		InstallMenubarService: func(cfg LaunchdServiceConfig) error { gotInstallCfg = cfg; return nil },
-		StartMenubarService:   func(cfg LaunchdServiceConfig) error { gotStartCfg = cfg; return nil },
+		CurrentEUID:             func() int { return 0 },
+		EnsurePaths:             func(InstallPaths) error { return nil },
+		WriteResolver:           func(ResolverConfig) error { return nil },
+		BootstrapCertificates:   func(context.Context) error { return nil },
+		PrepareDaemonBinary:     func(string) error { return nil },
+		PrepareMenubarBundle:    func(string, InstallPaths) error { return nil },
+		InstallDaemonService:    func(LaunchdServiceConfig) error { return nil },
+		StartDaemonService:      func(LaunchdServiceConfig) error { return nil },
+		ResolveGUIUserOwnership: func() (int, int, string, error) { return 502, 20, "/Users/alice", nil },
+		InstallMenubarService:   func(cfg LaunchdServiceConfig) error { gotInstallCfg = cfg; return nil },
+		StartMenubarService:     func(cfg LaunchdServiceConfig) error { gotStartCfg = cfg; return nil },
+		EnsureMenubarOwnership: func(paths InstallPaths, cfg LaunchdServiceConfig, uid, gid int) error {
+			gotOwnershipPaths = paths
+			gotOwnershipCfg = cfg
+			gotOwnershipUID = uid
+			gotOwnershipGID = gid
+			return nil
+		},
 	})
 
 	err := installer.Install(context.Background(), Options{Suffix: "test", WithMenubar: true, Paths: paths})
@@ -193,6 +210,25 @@ func TestInstallWithMenubarTargetsResolvedGUIUser(t *testing.T) {
 	if gotInstallCfg.PlistPath != wantPlistPath || gotStartCfg.PlistPath != wantPlistPath {
 		t.Fatalf("expected menubar plist path %q, got install=%q start=%q", wantPlistPath, gotInstallCfg.PlistPath, gotStartCfg.PlistPath)
 	}
+	wantProgramPath := filepath.Join("/Users/alice", "Library", "Application Support", "DevProxy", "DevProxy Menubar.app", "Contents", "MacOS", "devproxy-menubar")
+	if gotInstallCfg.Program != wantProgramPath || gotStartCfg.Program != wantProgramPath {
+		t.Fatalf("expected menubar program path %q, got install=%q start=%q", wantProgramPath, gotInstallCfg.Program, gotStartCfg.Program)
+	}
+	if len(gotInstallCfg.Arguments) != 1 || gotInstallCfg.Arguments[0] != "menubar" {
+		t.Fatalf("expected install arguments [menubar], got %v", gotInstallCfg.Arguments)
+	}
+	if len(gotStartCfg.Arguments) != 1 || gotStartCfg.Arguments[0] != "menubar" {
+		t.Fatalf("expected start arguments [menubar], got %v", gotStartCfg.Arguments)
+	}
+	if gotOwnershipUID != 502 || gotOwnershipGID != 20 {
+		t.Fatalf("expected ownership fix for uid/gid 502:20, got %d:%d", gotOwnershipUID, gotOwnershipGID)
+	}
+	if gotOwnershipCfg.PlistPath != wantPlistPath {
+		t.Fatalf("expected ownership fix to target plist %q, got %q", wantPlistPath, gotOwnershipCfg.PlistPath)
+	}
+	if wantUserLibrary := filepath.Join("/Users/alice", "Library"); gotOwnershipPaths.UserLibraryDir != wantUserLibrary {
+		t.Fatalf("expected ownership fix to target user library %q, got %q", wantUserLibrary, gotOwnershipPaths.UserLibraryDir)
+	}
 }
 
 func TestInstallWithMenubarFailsExplicitlyWithoutGUIUser(t *testing.T) {
@@ -204,11 +240,13 @@ func TestInstallWithMenubarFailsExplicitlyWithoutGUIUser(t *testing.T) {
 		WriteResolver:         func(ResolverConfig) error { return nil },
 		BootstrapCertificates: func(context.Context) error { return nil },
 		PrepareDaemonBinary:   func(string) error { return nil },
+		PrepareMenubarBundle:  func(string, InstallPaths) error { return nil },
 		InstallDaemonService:  func(LaunchdServiceConfig) error { return nil },
 		StartDaemonService:    func(LaunchdServiceConfig) error { return nil },
-		ResolveGUIUser: func() (int, string, error) {
-			return 0, "", errors.New("no active GUI user session found; log into macOS desktop and re-run install --with-menubar as sudo")
+		ResolveGUIUserOwnership: func() (int, int, string, error) {
+			return 0, 0, "", errors.New("no active GUI user session found; log into macOS desktop and re-run install --with-menubar as sudo")
 		},
+		EnsureMenubarOwnership: func(InstallPaths, LaunchdServiceConfig, int, int) error { return nil },
 	})
 
 	err := installer.Install(context.Background(), Options{Suffix: "test", WithMenubar: true})
@@ -232,6 +270,7 @@ func TestInstallWrapsResolverErrors(t *testing.T) {
 		WriteResolver:         func(ResolverConfig) error { return errors.New("permission denied") },
 		BootstrapCertificates: func(context.Context) error { return nil },
 		PrepareDaemonBinary:   func(string) error { return nil },
+		PrepareMenubarBundle:  func(string, InstallPaths) error { return nil },
 		InstallDaemonService:  func(LaunchdServiceConfig) error { return nil },
 		StartDaemonService:    func(LaunchdServiceConfig) error { return nil },
 	})
@@ -239,6 +278,66 @@ func TestInstallWrapsResolverErrors(t *testing.T) {
 	err := installer.Install(context.Background(), Options{Suffix: "test"})
 	if err == nil || !strings.Contains(err.Error(), "resolver") {
 		t.Fatalf("expected explicit resolver failure, got %v", err)
+	}
+}
+
+func TestInstallWrapsDaemonStartupVerificationErrors(t *testing.T) {
+	t.Parallel()
+
+	installer := NewInstaller(Dependencies{
+		CurrentEUID:           func() int { return 0 },
+		EnsurePaths:           func(InstallPaths) error { return nil },
+		WriteResolver:         func(ResolverConfig) error { return nil },
+		BootstrapCertificates: func(context.Context) error { return nil },
+		PrepareDaemonBinary:   func(string) error { return nil },
+		PrepareMenubarBundle:  func(string, InstallPaths) error { return nil },
+		InstallDaemonService:  func(LaunchdServiceConfig) error { return nil },
+		StartDaemonService: func(LaunchdServiceConfig) error {
+			return errors.New("launchd service system/com.devproxy.daemon failed to reach running state within 2s")
+		},
+	})
+
+	err := installer.Install(context.Background(), Options{Suffix: "test"})
+	if err == nil {
+		t.Fatalf("expected daemon startup verification failure")
+	}
+	if !strings.Contains(err.Error(), "start daemon service") {
+		t.Fatalf("expected daemon startup context, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "failed to reach running state") {
+		t.Fatalf("expected running-state verification detail, got %v", err)
+	}
+}
+
+func TestInstallWrapsMenubarStartupVerificationErrors(t *testing.T) {
+	t.Parallel()
+
+	installer := NewInstaller(Dependencies{
+		CurrentEUID:             func() int { return 0 },
+		EnsurePaths:             func(InstallPaths) error { return nil },
+		WriteResolver:           func(ResolverConfig) error { return nil },
+		BootstrapCertificates:   func(context.Context) error { return nil },
+		PrepareDaemonBinary:     func(string) error { return nil },
+		PrepareMenubarBundle:    func(string, InstallPaths) error { return nil },
+		InstallDaemonService:    func(LaunchdServiceConfig) error { return nil },
+		StartDaemonService:      func(LaunchdServiceConfig) error { return nil },
+		ResolveGUIUserOwnership: func() (int, int, string, error) { return 501, 20, "/Users/dev", nil },
+		InstallMenubarService:   func(LaunchdServiceConfig) error { return nil },
+		EnsureMenubarOwnership:  func(InstallPaths, LaunchdServiceConfig, int, int) error { return nil },
+		StartMenubarService: func(LaunchdServiceConfig) error {
+			return errors.New("launchd service gui/501/com.devproxy.menubar failed to reach running state within 2s")
+		},
+	})
+
+	err := installer.Install(context.Background(), Options{Suffix: "test", WithMenubar: true})
+	if err == nil {
+		t.Fatalf("expected menubar startup verification failure")
+	}
+	if !strings.Contains(err.Error(), "start menubar service") {
+		t.Fatalf("expected menubar startup context, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "failed to reach running state") {
+		t.Fatalf("expected running-state verification detail, got %v", err)
 	}
 }
 
@@ -252,6 +351,7 @@ func TestInstallRequiresRootBeforeMutations(t *testing.T) {
 			mutated = true
 			return nil
 		},
+		PrepareMenubarBundle: func(string, InstallPaths) error { return nil },
 	})
 
 	err := installer.Install(context.Background(), Options{Suffix: "test"})
@@ -263,5 +363,62 @@ func TestInstallRequiresRootBeforeMutations(t *testing.T) {
 	}
 	if mutated {
 		t.Fatalf("expected no install mutations before root preflight")
+	}
+}
+
+func TestPrepareMenubarBundleCreatesAppBundle(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	sourceBinary := filepath.Join(root, "devproxy")
+	if err := os.WriteFile(sourceBinary, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatalf("write source binary: %v", err)
+	}
+	paths := InstallPaths{UserLibraryDir: filepath.Join(root, "Library")}
+
+	if err := prepareMenubarBundle(sourceBinary, paths); err != nil {
+		t.Fatalf("prepare menubar bundle: %v", err)
+	}
+
+	if _, err := os.Stat(MenubarBundleExecutablePath(paths)); err != nil {
+		t.Fatalf("expected bundle executable, got %v", err)
+	}
+	infoPlistPath := filepath.Join(MenubarBundlePath(paths), "Contents", "Info.plist")
+	data, err := os.ReadFile(infoPlistPath)
+	if err != nil {
+		t.Fatalf("read Info.plist: %v", err)
+	}
+	plist := string(data)
+	if !strings.Contains(plist, "<key>LSUIElement</key>") {
+		t.Fatalf("expected LSUIElement in bundle Info.plist")
+	}
+	if !strings.Contains(plist, "devproxy-menubar") {
+		t.Fatalf("expected bundle executable name in Info.plist")
+	}
+}
+
+func TestInstallFailsWhenMenubarOwnershipFixFails(t *testing.T) {
+	t.Parallel()
+
+	installer := NewInstaller(Dependencies{
+		CurrentEUID:             func() int { return 0 },
+		EnsurePaths:             func(InstallPaths) error { return nil },
+		WriteResolver:           func(ResolverConfig) error { return nil },
+		BootstrapCertificates:   func(context.Context) error { return nil },
+		PrepareDaemonBinary:     func(string) error { return nil },
+		PrepareMenubarBundle:    func(string, InstallPaths) error { return nil },
+		InstallDaemonService:    func(LaunchdServiceConfig) error { return nil },
+		StartDaemonService:      func(LaunchdServiceConfig) error { return nil },
+		ResolveGUIUserOwnership: func() (int, int, string, error) { return 501, 20, "/Users/dev", nil },
+		InstallMenubarService:   func(LaunchdServiceConfig) error { return nil },
+		EnsureMenubarOwnership:  func(InstallPaths, LaunchdServiceConfig, int, int) error { return errors.New("permission denied") },
+	})
+
+	err := installer.Install(context.Background(), Options{Suffix: "test", WithMenubar: true})
+	if err == nil {
+		t.Fatalf("expected ownership fix failure")
+	}
+	if !strings.Contains(err.Error(), "fix menubar file ownership") {
+		t.Fatalf("expected explicit ownership failure context, got %v", err)
 	}
 }

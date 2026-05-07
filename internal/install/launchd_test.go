@@ -131,6 +131,49 @@ func TestStartServiceBootoutIsIdempotentBeforeBootstrap(t *testing.T) {
 	if !strings.Contains(calls, "kickstart -k system/com.devproxy.daemon") {
 		t.Fatalf("expected kickstart call, got %q", calls)
 	}
+	if !strings.Contains(calls, "print system/com.devproxy.daemon") {
+		t.Fatalf("expected running-state print probe, got %q", calls)
+	}
+}
+
+func TestStartServiceFailsWhenServiceDoesNotReachRunningState(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("launchctl script test is unix-only")
+	}
+
+	tmp := t.TempDir()
+	stateFile := filepath.Join(tmp, "state")
+	plistPath := filepath.Join(tmp, "com.devproxy.daemon.plist")
+	programPath := filepath.Join(tmp, "devproxy")
+	if err := os.WriteFile(plistPath, []byte(plistFor(LaunchdServiceConfig{Label: "com.devproxy.daemon", Program: programPath, Arguments: []string{"daemon"}, StderrLog: "/var/log/devproxy/daemon.stderr.log"})), 0o644); err != nil {
+		t.Fatalf("write plist: %v", err)
+	}
+	if err := os.WriteFile(programPath, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatalf("write program: %v", err)
+	}
+
+	binDir := t.TempDir()
+	makeFakePlutil(t, binDir)
+	makeNonRunningLaunchctl(t, binDir, stateFile)
+	originalPath := os.Getenv("PATH")
+	t.Setenv("PATH", binDir+":"+originalPath)
+
+	err := StartService(LaunchdServiceConfig{
+		Label:     "com.devproxy.daemon",
+		Domain:    DomainSystem,
+		PlistPath: plistPath,
+		Program:   programPath,
+		StderrLog: "/var/log/devproxy/daemon.stderr.log",
+	})
+	if err == nil {
+		t.Fatalf("expected running-state failure")
+	}
+	if !strings.Contains(err.Error(), "failed to reach running state") {
+		t.Fatalf("expected running-state failure context, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "inspect stderr log: /var/log/devproxy/daemon.stderr.log") {
+		t.Fatalf("expected stderr log hint, got %v", err)
+	}
 }
 
 func TestStopServiceTreatsBootoutExitFiveAsMissingOnlyWithMissingStateProbe(t *testing.T) {
@@ -233,6 +276,37 @@ func TestPlistIncludesEnvironmentPath(t *testing.T) {
 	}
 }
 
+func TestMenubarServiceConfigWritesLogsToUserLibrary(t *testing.T) {
+	t.Parallel()
+
+	paths := InstallPaths{UserLibraryDir: "/Users/alice/Library"}
+	cfg := MenubarServiceConfig(paths, 502)
+	if got, want := cfg.StdoutLog, "/Users/alice/Library/Logs/DevProxy/menubar.stdout.log"; got != want {
+		t.Fatalf("expected stdout log %q, got %q", want, got)
+	}
+	if got, want := cfg.StderrLog, "/Users/alice/Library/Logs/DevProxy/menubar.stderr.log"; got != want {
+		t.Fatalf("expected stderr log %q, got %q", want, got)
+	}
+}
+
+func TestMenubarPlistIncludesInteractiveAquaSession(t *testing.T) {
+	t.Parallel()
+
+	plist := plistFor(LaunchdServiceConfig{
+		Label:     "com.devproxy.menubar",
+		Domain:    DomainAgent,
+		Program:   "/usr/local/bin/devproxy",
+		Arguments: []string{"menubar"},
+	})
+
+	if !strings.Contains(plist, "<key>LimitLoadToSessionType</key>") || !strings.Contains(plist, "<string>Aqua</string>") {
+		t.Fatalf("expected menubar plist to limit load to Aqua session")
+	}
+	if !strings.Contains(plist, "<key>ProcessType</key>") || !strings.Contains(plist, "<string>Interactive</string>") {
+		t.Fatalf("expected menubar plist to set interactive process type")
+	}
+}
+
 func makeFakeLaunchctl(t *testing.T, stateFile string, printMissing bool) string {
 	t.Helper()
 	binDir := t.TempDir()
@@ -299,13 +373,41 @@ func makeIdempotentLaunchctl(t *testing.T, binDir, stateFile string) {
 	scriptPath := filepath.Join(binDir, "launchctl")
 	script := "#!/bin/sh\n" +
 		"echo \"$*\" >> \"" + stateFile + "\"\n" +
+		"if [ \"$1\" = \"bootstrap\" ]; then\n" +
+		"  echo running > \"" + stateFile + ".status\"\n" +
+		"  exit 0\n" +
+		"fi\n" +
 		"if [ \"$1\" = \"bootout\" ]; then\n" +
 		"  echo \"Boot-out failed: 5: Input/output error\" >&2\n" +
 		"  exit 5\n" +
 		"fi\n" +
 		"if [ \"$1\" = \"print\" ]; then\n" +
+		"  if [ -f \"" + stateFile + ".status\" ]; then\n" +
+		"    echo \"state = running\"\n" +
+		"    exit 0\n" +
+		"  fi\n" +
 		"  echo \"Could not find service\" >&2\n" +
 		"  exit 113\n" +
+		"fi\n" +
+		"exit 0\n"
+	if err := os.WriteFile(scriptPath, []byte(script), 0o755); err != nil {
+		t.Fatalf("write fake launchctl: %v", err)
+	}
+}
+
+func makeNonRunningLaunchctl(t *testing.T, binDir, stateFile string) {
+	t.Helper()
+	scriptPath := filepath.Join(binDir, "launchctl")
+	script := "#!/bin/sh\n" +
+		"echo \"$*\" >> \"" + stateFile + "\"\n" +
+		"if [ \"$1\" = \"bootout\" ]; then\n" +
+		"  echo \"Could not find service\" >&2\n" +
+		"  exit 113\n" +
+		"fi\n" +
+		"if [ \"$1\" = \"print\" ]; then\n" +
+		"  echo \"state = spawn scheduled\"\n" +
+		"  echo \"last exit code = 1\"\n" +
+		"  exit 0\n" +
 		"fi\n" +
 		"exit 0\n"
 	if err := os.WriteFile(scriptPath, []byte(script), 0o755); err != nil {

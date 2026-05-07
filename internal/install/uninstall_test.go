@@ -13,6 +13,7 @@ func TestUninstallHonorsIndependentCleanupChoices(t *testing.T) {
 	var removed []string
 	u := NewUninstaller(UninstallDependencies{
 		CurrentEUID:            func() int { return 0 },
+		ResolveGUIUser:         func() (int, string, error) { return 501, "/Users/dev", nil },
 		StopDaemonService:      func(context.Context, LaunchdServiceConfig) error { return nil },
 		UninstallDaemonService: func(context.Context, LaunchdServiceConfig) error { return nil },
 		RemoveResolver:         func(context.Context, ResolverConfig) error { return nil },
@@ -47,6 +48,7 @@ func TestUninstallAlwaysStopsAndUnregistersBeforeOptionalCleanup(t *testing.T) {
 	var steps []string
 	u := NewUninstaller(UninstallDependencies{
 		CurrentEUID:       func() int { return 0 },
+		ResolveGUIUser:    func() (int, string, error) { return 501, "/Users/dev", nil },
 		StopDaemonService: func(context.Context, LaunchdServiceConfig) error { steps = append(steps, "stop-daemon"); return nil },
 		UninstallDaemonService: func(context.Context, LaunchdServiceConfig) error {
 			steps = append(steps, "uninstall-daemon")
@@ -113,7 +115,8 @@ func TestUninstallTreatsMissingServiceStateAsNonFatal(t *testing.T) {
 
 	var removedResolver bool
 	u := NewUninstaller(UninstallDependencies{
-		CurrentEUID: func() int { return 0 },
+		CurrentEUID:    func() int { return 0 },
+		ResolveGUIUser: func() (int, string, error) { return 501, "/Users/dev", nil },
 		StopDaemonService: func(context.Context, LaunchdServiceConfig) error {
 			return errors.New("launchctl bootout failed: Could not find service")
 		},
@@ -132,6 +135,32 @@ func TestUninstallTreatsMissingServiceStateAsNonFatal(t *testing.T) {
 	}
 	if !removedResolver {
 		t.Fatalf("expected uninstall to continue to resolver removal")
+	}
+}
+
+func TestUninstallWithMenubarTargetsResolvedGUIUser(t *testing.T) {
+	t.Parallel()
+
+	var stopCfg LaunchdServiceConfig
+	u := NewUninstaller(UninstallDependencies{
+		CurrentEUID:             func() int { return 0 },
+		ResolveGUIUser:          func() (int, string, error) { return 502, "/Users/alice", nil },
+		StopDaemonService:       func(context.Context, LaunchdServiceConfig) error { return nil },
+		UninstallDaemonService:  func(context.Context, LaunchdServiceConfig) error { return nil },
+		StopMenubarService:      func(_ context.Context, cfg LaunchdServiceConfig) error { stopCfg = cfg; return nil },
+		UninstallMenubarService: func(context.Context, LaunchdServiceConfig) error { return nil },
+		RemoveResolver:          func(context.Context, ResolverConfig) error { return nil },
+	})
+
+	err := u.Uninstall(context.Background(), UninstallOptions{Suffix: "test", WithMenubar: true})
+	if err != nil {
+		t.Fatalf("uninstall failed: %v", err)
+	}
+	if stopCfg.AgentUID != 502 {
+		t.Fatalf("expected menubar uninstall to target uid 502, got %d", stopCfg.AgentUID)
+	}
+	if want := "/Users/alice/Library/LaunchAgents/com.devproxy.menubar.plist"; stopCfg.PlistPath != want {
+		t.Fatalf("expected menubar plist path %q, got %q", want, stopCfg.PlistPath)
 	}
 }
 

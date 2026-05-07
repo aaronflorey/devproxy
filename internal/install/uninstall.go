@@ -23,6 +23,7 @@ type UninstallOptions struct {
 
 type UninstallDependencies struct {
 	CurrentEUID             func() int
+	ResolveGUIUser          func() (uid int, homeDir string, err error)
 	StopDaemonService       func(context.Context, LaunchdServiceConfig) error
 	UninstallDaemonService  func(context.Context, LaunchdServiceConfig) error
 	StopMenubarService      func(context.Context, LaunchdServiceConfig) error
@@ -42,6 +43,9 @@ func NewUninstaller(deps UninstallDependencies) *Uninstaller {
 	}
 	if deps.CurrentEUID == nil {
 		deps.CurrentEUID = os.Geteuid
+	}
+	if deps.ResolveGUIUser == nil {
+		deps.ResolveGUIUser = ResolveGUIUser
 	}
 	if deps.UninstallDaemonService == nil {
 		deps.UninstallDaemonService = UninstallService
@@ -88,12 +92,21 @@ func (u *Uninstaller) Uninstall(ctx context.Context, opts UninstallOptions) erro
 		return fmt.Errorf("uninstall daemon service: %w", err)
 	}
 	if opts.WithMenubar {
-		menubarCfg := MenubarServiceConfig(paths, os.Getuid())
+		guiUID, guiHome, err := u.deps.ResolveGUIUser()
+		if err != nil {
+			return fmt.Errorf("resolve GUI user for menubar uninstall: %w", err)
+		}
+		menubarPaths := paths
+		menubarPaths.UserLibraryDir = filepath.Join(guiHome, "Library")
+		menubarCfg := MenubarServiceConfig(menubarPaths, guiUID)
 		if err := u.deps.StopMenubarService(ctx, menubarCfg); err != nil && !isAlreadyRemovedServiceState(err) {
 			return fmt.Errorf("stop menubar service: %w", err)
 		}
 		if err := u.deps.UninstallMenubarService(ctx, menubarCfg); err != nil && !isAlreadyRemovedServiceState(err) {
 			return fmt.Errorf("uninstall menubar service: %w", err)
+		}
+		if err := os.RemoveAll(MenubarBundlePath(menubarPaths)); err != nil {
+			return fmt.Errorf("remove menubar app bundle: %w", err)
 		}
 	}
 

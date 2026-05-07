@@ -24,6 +24,10 @@ func newLogsCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			issues, err := client.Issues(cmd.Context())
+			if err != nil {
+				return err
+			}
 			for _, event := range events {
 				_, err = fmt.Fprintf(cmd.OutOrStdout(), "%s [%s] host=%s state=%s upstream=%s:%d %s\n",
 					event.Timestamp.Format("2006-01-02T15:04:05Z07:00"),
@@ -37,6 +41,21 @@ func newLogsCommand() *cobra.Command {
 				if err != nil {
 					return err
 				}
+			}
+			for _, issue := range issues {
+				_, err = fmt.Fprintf(cmd.OutOrStdout(), "%s [issue] role=%s action=%s %s\n",
+					issue.Timestamp.Format("2006-01-02T15:04:05Z07:00"),
+					issue.Role,
+					issue.Action,
+					issue.Message,
+				)
+				if err != nil {
+					return err
+				}
+			}
+			if len(events) == 0 && len(issues) == 0 {
+				_, err = fmt.Fprintln(cmd.OutOrStdout(), "no current daemon-session events recorded")
+				return err
 			}
 			return nil
 		},

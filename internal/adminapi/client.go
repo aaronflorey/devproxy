@@ -57,6 +57,14 @@ func (c *Client) Logs(ctx context.Context) ([]admin.LogEvent, error) {
 	return payload.Events, nil
 }
 
+func (c *Client) Issues(ctx context.Context) ([]admin.SessionIssue, error) {
+	payload, err := fetchJSON[SessionIssuesResponse](ctx, c.httpClient, "/issues")
+	if err != nil {
+		return nil, err
+	}
+	return payload.Issues, nil
+}
+
 func (c *Client) Doctor(ctx context.Context) (admin.DoctorView, error) {
 	payload, err := fetchJSON[DoctorResponse](ctx, c.httpClient, "/doctor")
 	if err != nil {
