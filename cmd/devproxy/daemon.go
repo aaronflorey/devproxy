@@ -22,6 +22,12 @@ func newDaemonCommand() *cobra.Command {
 		Short: "Run devproxy foreground daemon",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			_ = args
+			if err := ensureRoot(cmd); err != nil {
+				if handledByPrivilegedRerun(err) {
+					return nil
+				}
+				return err
+			}
 			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
 
@@ -35,6 +41,8 @@ func newDaemonCommand() *cobra.Command {
 				HTTPAddress:     httpAddress,
 				HTTPSAddress:    httpsAddress,
 				Config:          cfg,
+				DockerPing:      daemon.DefaultDockerPing,
+				DockerScan:      daemon.DefaultDockerScan,
 				EnsureMKCert:    daemon.DefaultEnsureMKCert,
 			})
 			defer func() { _ = app.Close(context.Background()) }()

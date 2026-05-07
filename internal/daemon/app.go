@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os/exec"
 	"path/filepath"
 	"sync"
 	"time"
@@ -13,15 +12,18 @@ import (
 	"github.com/mochaka/devproxy/internal/adminapi"
 	"github.com/mochaka/devproxy/internal/certs"
 	"github.com/mochaka/devproxy/internal/config"
+	"github.com/mochaka/devproxy/internal/dashboard"
 	"github.com/mochaka/devproxy/internal/install"
 )
 
 type AppConfig struct {
 	AdminSocketPath     string
+	DashboardAddress    string
 	HTTPAddress         string
 	HTTPSAddress        string
 	Config              config.Config
 	DockerPing          func(context.Context) error
+	DockerScan          func(context.Context) ([]ContainerState, error)
 	EnsureMKCert        func(context.Context) error
 	BuildNetworkRuntime func(context.Context) error
 }
@@ -32,6 +34,8 @@ type App struct {
 	watcher    *Watcher
 	network    *NetworkRuntime
 	server     *adminapi.Server
+	dashboard  *dashboard.Server
+	dashCancel context.CancelFunc
 	issueMu    sync.Mutex
 	issues     []admin.SessionIssue
 }
@@ -47,6 +51,9 @@ func NewApp(cfg AppConfig) *App {
 	_ = r.RebuildSnapshot(nil)
 	if cfg.AdminSocketPath == "" {
 		cfg.AdminSocketPath = "/tmp/devproxy/admin.sock"
+	}
+	if cfg.DashboardAddress == "" {
+		cfg.DashboardAddress = dashboard.DefaultListenAddress
 	}
 	if cfg.HTTPAddress == "" {
 		cfg.HTTPAddress = "127.0.0.1:80"
@@ -65,6 +72,10 @@ func (a *App) Start(ctx context.Context) error {
 		if err := ping(ctx); err != nil {
 			return fmt.Errorf("docker reachability check failed: %w", err)
 		}
+	}
+
+	if err := a.refreshFromDocker(ctx); err != nil {
+		return err
 	}
 
 	if ensure := a.cfg.EnsureMKCert; ensure != nil {
@@ -116,6 +127,17 @@ func (a *App) Start(ctx context.Context) error {
 		return fmt.Errorf("start admin socket server: %w", err)
 	}
 	a.server = server
+
+	dashboardClient := adminapi.NewClient(a.cfg.AdminSocketPath)
+	dashboardServer := dashboard.NewServer(dashboard.Config{ListenAddress: a.cfg.DashboardAddress, Client: dashboardClient})
+	dashCtx, dashCancel := context.WithCancel(context.Background())
+	a.dashboard = dashboardServer
+	a.dashCancel = dashCancel
+	go func() {
+		if err := dashboardServer.Run(dashCtx); err != nil {
+			a.recordIssue("dashboard", "start", err.Error())
+		}
+	}()
 	return nil
 }
 
@@ -127,8 +149,8 @@ func (a *App) Run(ctx context.Context) error {
 	return a.Close(context.Background())
 }
 
-func (a *App) Refresh(context.Context) error {
-	return a.reconciler.RebuildSnapshot(nil)
+func (a *App) Refresh(ctx context.Context) error {
+	return a.refreshFromDocker(ctx)
 }
 
 func (a *App) setRoutingPaused(_ context.Context, paused bool) error {
@@ -186,6 +208,9 @@ func (a *App) recordIssue(role, action, message string) {
 }
 
 func (a *App) Close(ctx context.Context) error {
+	if a.dashCancel != nil {
+		a.dashCancel()
+	}
 	if a.server != nil {
 		_ = a.server.Close(ctx)
 	}
@@ -230,12 +255,19 @@ func (a *App) stateSnapshot() adminapi.StateSnapshot {
 	return adminapi.StateSnapshot{Snapshot: snapshot, Status: status, Doctor: doctor, Logs: logs, Issues: issues}
 }
 
-func DefaultDockerPing(context.Context) error { return nil }
-
-func DefaultEnsureMKCert(context.Context) error {
-	_, err := exec.LookPath("mkcert")
-	if err != nil {
-		return fmt.Errorf("mkcert not found: install mkcert before enabling HTTPS: %w", err)
+func (a *App) refreshFromDocker(ctx context.Context) error {
+	if a.cfg.DockerScan == nil {
+		a.watcher.OnReconnect(nil)
+		return a.reconciler.RebuildSnapshot(nil)
 	}
+
+	containers, err := a.cfg.DockerScan(ctx)
+	if err != nil {
+		a.watcher.OnDisconnect()
+		a.recordIssue("docker", "scan", err.Error())
+		return fmt.Errorf("docker container sync failed: %w", err)
+	}
+
+	a.watcher.OnReconnect(containers)
 	return nil
 }

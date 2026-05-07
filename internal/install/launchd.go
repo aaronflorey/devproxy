@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 )
 
 type StartupRoleStatus struct {
@@ -61,16 +62,34 @@ func MenubarServiceConfig(paths InstallPaths, agentUID int) LaunchdServiceConfig
 		Domain:    DomainAgent,
 		AgentUID:  agentUID,
 		PlistPath: filepath.Join(paths.UserLibraryDir, "LaunchAgents", "com.devproxy.menubar.plist"),
-		Program:   daemonProgramPath,
+		Program:   MenubarBundleExecutablePath(paths),
 		Arguments: []string{"menubar"},
-		StdoutLog: filepath.Join(paths.LogDir, "menubar.stdout.log"),
-		StderrLog: filepath.Join(paths.LogDir, "menubar.stderr.log"),
+		StdoutLog: filepath.Join(paths.UserLibraryDir, "Logs", "DevProxy", "menubar.stdout.log"),
+		StderrLog: filepath.Join(paths.UserLibraryDir, "Logs", "DevProxy", "menubar.stderr.log"),
 	}
+}
+
+func MenubarBundlePath(paths InstallPaths) string {
+	return filepath.Join(paths.UserLibraryDir, "Application Support", "DevProxy", "DevProxy Menubar.app")
+}
+
+func MenubarBundleExecutablePath(paths InstallPaths) string {
+	return filepath.Join(MenubarBundlePath(paths), "Contents", "MacOS", "devproxy-menubar")
 }
 
 func InstallService(cfg LaunchdServiceConfig) error {
 	if err := os.MkdirAll(filepath.Dir(cfg.PlistPath), 0o755); err != nil {
 		return fmt.Errorf("create launchd plist directory: %w", err)
+	}
+	if cfg.StdoutLog != "" {
+		if err := os.MkdirAll(filepath.Dir(cfg.StdoutLog), 0o755); err != nil {
+			return fmt.Errorf("create launchd stdout log directory: %w", err)
+		}
+	}
+	if cfg.StderrLog != "" {
+		if err := os.MkdirAll(filepath.Dir(cfg.StderrLog), 0o755); err != nil {
+			return fmt.Errorf("create launchd stderr log directory: %w", err)
+		}
 	}
 	if err := os.WriteFile(cfg.PlistPath, []byte(plistFor(cfg)), 0o644); err != nil {
 		return fmt.Errorf("write launchd plist %q: %w", cfg.PlistPath, err)
@@ -93,6 +112,10 @@ func StartService(cfg LaunchdServiceConfig) error {
 
 	if err := runLaunchctl("kickstart", "-k", fmt.Sprintf("%s/%s", domainTarget(cfg), cfg.Label)); err != nil {
 		return fmt.Errorf("launchd service bootstrapped but kickstart failed for %s/%s: %w", domainTarget(cfg), cfg.Label, err)
+	}
+
+	if err := waitForServiceRunning(cfg, 2*time.Second); err != nil {
+		return err
 	}
 
 	return nil
@@ -128,6 +151,12 @@ func plistFor(cfg LaunchdServiceConfig) string {
 	for _, arg := range cfg.Arguments {
 		args += fmt.Sprintf("\n        <string>%s</string>", arg)
 	}
+	sessionType := ""
+	processType := ""
+	if cfg.Domain == DomainAgent {
+		sessionType = "\n    <key>LimitLoadToSessionType</key>\n    <array>\n        <string>Aqua</string>\n    </array>"
+		processType = "\n    <key>ProcessType</key>\n    <string>Interactive</string>"
+	}
 	stdoutLog := ""
 	if cfg.StdoutLog != "" {
 		stdoutLog = fmt.Sprintf("\n    <key>StandardOutPath</key>\n    <string>%s</string>", cfg.StdoutLog)
@@ -149,7 +178,7 @@ func plistFor(cfg LaunchdServiceConfig) string {
     <key>RunAtLoad</key>
     <true/>
     <key>KeepAlive</key>
-    <true/>
+    <true/>%s%s
     <key>EnvironmentVariables</key>
     <dict>
         <key>PATH</key>
@@ -157,7 +186,7 @@ func plistFor(cfg LaunchdServiceConfig) string {
     </dict>%s%s
 </dict>
 </plist>
-`, cfg.Label, cfg.Program, args, launchdDefaultPath, stdoutLog, stderrLog)
+`, cfg.Label, cfg.Program, args, sessionType, processType, launchdDefaultPath, stdoutLog, stderrLog)
 }
 
 func domainTarget(cfg LaunchdServiceConfig) string {
@@ -284,6 +313,42 @@ func bootstrapDiagnosticError(cfg LaunchdServiceConfig, bootstrapErr error) erro
 	return errors.New(sb.String())
 }
 
+func waitForServiceRunning(cfg LaunchdServiceConfig, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	serviceTarget := fmt.Sprintf("%s/%s", domainTarget(cfg), cfg.Label)
+	var lastOutput string
+	var lastErr error
+
+	for {
+		printOutput, err := runCommand("launchctl", "print", serviceTarget)
+		lastOutput = printOutput
+		lastErr = err
+		if err == nil && launchctlPrintIndicatesRunning(printOutput) {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			break
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+
+	var detail string
+	if lastErr != nil {
+		detail = lastErr.Error()
+	} else {
+		detail = lastOutput
+	}
+
+	msg := fmt.Sprintf("launchd service %s failed to reach running state within %s", serviceTarget, timeout)
+	if strings.TrimSpace(detail) != "" {
+		msg += ": " + detail
+	}
+	if cfg.StderrLog != "" {
+		msg += "; inspect stderr log: " + cfg.StderrLog
+	}
+	return errors.New(msg)
+}
+
 func isKnownLaunchdMissingState(message string) bool {
 	msg := strings.ToLower(message)
 	return strings.Contains(msg, "could not find service") ||
@@ -307,13 +372,20 @@ func serviceAlreadyMissing(cfg LaunchdServiceConfig) bool {
 
 func StartupStatuses(paths InstallPaths) []StartupRoleStatus {
 	daemonCfg := DaemonServiceConfig(paths)
-	menubarCfg := MenubarServiceConfig(paths, os.Getuid())
+	menubarCfg, menubarErr := activeMenubarServiceConfig(paths)
 
 	daemonInstalled := fileExists(daemonCfg.PlistPath)
-	menubarInstalled := fileExists(menubarCfg.PlistPath)
+	menubarInstalled := menubarErr == nil && fileExists(menubarCfg.PlistPath)
 
 	daemonRunning := serviceRunning(daemonCfg)
-	menubarRunning := serviceRunning(menubarCfg)
+	menubarRunning := menubarErr == nil && serviceRunning(menubarCfg)
+	menubarStatus := menubarStatusMessage(menubarInstalled, menubarRunning)
+	menubarDomain := string(DomainAgent)
+	if menubarErr != nil {
+		menubarStatus = menubarErr.Error()
+	} else {
+		menubarDomain = domainTarget(menubarCfg)
+	}
 
 	statuses := []StartupRoleStatus{
 		{
@@ -327,12 +399,12 @@ func StartupStatuses(paths InstallPaths) []StartupRoleStatus {
 		},
 		{
 			Role:          "menubar",
-			Domain:        domainTarget(menubarCfg),
-			Label:         menubarCfg.Label,
+			Domain:        menubarDomain,
+			Label:         "com.devproxy.menubar",
 			Installed:     menubarInstalled,
 			Running:       menubarRunning,
 			Toggleable:    true,
-			StatusMessage: menubarStatusMessage(menubarInstalled, menubarRunning),
+			StatusMessage: menubarStatus,
 		},
 	}
 
@@ -340,7 +412,10 @@ func StartupStatuses(paths InstallPaths) []StartupRoleStatus {
 }
 
 func SetMenubarStartupEnabled(ctx context.Context, paths InstallPaths, enabled bool) error {
-	menubarCfg := MenubarServiceConfig(paths, os.Getuid())
+	menubarCfg, err := activeMenubarServiceConfig(paths)
+	if err != nil {
+		return err
+	}
 	if enabled {
 		if err := InstallService(menubarCfg); err != nil {
 			return err
@@ -360,14 +435,31 @@ func SetMenubarStartupEnabled(ctx context.Context, paths InstallPaths, enabled b
 	return nil
 }
 
+func activeMenubarServiceConfig(paths InstallPaths) (LaunchdServiceConfig, error) {
+	uid, homeDir, err := ResolveGUIUser()
+	if err != nil {
+		return LaunchdServiceConfig{}, err
+	}
+	menubarPaths := paths
+	menubarPaths.UserLibraryDir = filepath.Join(homeDir, "Library")
+	return MenubarServiceConfig(menubarPaths, uid), nil
+}
+
 func fileExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
 }
 
 func serviceRunning(cfg LaunchdServiceConfig) bool {
-	err := runLaunchctl("print", fmt.Sprintf("%s/%s", domainTarget(cfg), cfg.Label))
-	return err == nil
+	printOutput, err := runCommand("launchctl", "print", fmt.Sprintf("%s/%s", domainTarget(cfg), cfg.Label))
+	if err != nil {
+		return false
+	}
+	return launchctlPrintIndicatesRunning(printOutput)
+}
+
+func launchctlPrintIndicatesRunning(printOutput string) bool {
+	return strings.Contains(strings.ToLower(printOutput), "state = running")
 }
 
 func daemonStatusMessage(installed, running bool) string {

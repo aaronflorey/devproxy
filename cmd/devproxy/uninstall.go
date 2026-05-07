@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
 	"github.com/mochaka/devproxy/internal/install"
@@ -17,17 +16,25 @@ func init() {
 
 func newUninstallCommand() *cobra.Command {
 	var withMenubar bool
+	var assumeYes bool
 	cmd := &cobra.Command{
 		Use:   "uninstall",
 		Short: "Uninstall devproxy services and optional local artifacts",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			_ = args
-			if os.Geteuid() != 0 {
-				return fmt.Errorf("devproxy uninstall requires root privileges; rerun with sudo")
-			}
-			scope, err := promptCleanupScope(cmd.InOrStdin(), cmd.OutOrStdout())
-			if err != nil {
+			if err := ensureRoot(cmd); err != nil {
+				if handledByPrivilegedRerun(err) {
+					return nil
+				}
 				return err
+			}
+			scope := install.CleanupScope{}
+			if !assumeYes {
+				var err error
+				scope, err = promptCleanupScope(cmd.InOrStdin(), cmd.OutOrStdout())
+				if err != nil {
+					return err
+				}
 			}
 			uninstaller := install.NewUninstaller(install.UninstallDependencies{})
 			if err := uninstaller.Uninstall(cmd.Context(), install.UninstallOptions{
@@ -37,11 +44,12 @@ func newUninstallCommand() *cobra.Command {
 			}); err != nil {
 				return err
 			}
-			_, err = fmt.Fprintln(cmd.OutOrStdout(), "devproxy uninstall completed")
+			_, err := fmt.Fprintln(cmd.OutOrStdout(), "devproxy uninstall completed")
 			return err
 		},
 	}
 	cmd.Flags().BoolVar(&withMenubar, "with-menubar", false, "also unregister optional menu bar LaunchAgent")
+	cmd.Flags().BoolVar(&assumeYes, "yes", false, "skip interactive cleanup prompts and keep optional artifacts")
 	return cmd
 }
 
