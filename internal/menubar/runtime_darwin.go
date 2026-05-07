@@ -10,6 +10,11 @@ import (
 	"github.com/getlantern/systray"
 )
 
+var (
+	runSystray  = systray.Run
+	quitSystray = systray.Quit
+)
+
 type routeSlot struct {
 	item    *systray.MenuItem
 	host    string
@@ -71,7 +76,6 @@ func Run(ctx context.Context, client adminClient, op opener) error {
 	}
 	d := newDispatcher(client, op)
 
-	ready := make(chan struct{})
 	quit := make(chan struct{})
 
 	var statusItem *systray.MenuItem
@@ -117,8 +121,6 @@ func Run(ctx context.Context, client adminClient, op opener) error {
 			stateInfo = runtimeState{}
 		}
 		quitItem := systray.AddMenuItem("Quit", "Quit DevProxy menu bar")
-		close(ready)
-
 		go func() {
 			paused := stateInfo.paused
 			startupEnabled := stateInfo.startupEnabled
@@ -176,16 +178,19 @@ func Run(ctx context.Context, client adminClient, op opener) error {
 		close(quit)
 	}
 
-	go systray.Run(onReady, onExit)
-	<-ready
-	select {
-	case <-ctx.Done():
-		systray.Quit()
-		<-quit
-		return nil
-	case <-quit:
-		return nil
-	}
+	runContextBoundSystray(ctx, onReady, onExit, runSystray, quitSystray)
+	<-quit
+	return nil
+}
+
+func runContextBoundSystray(ctx context.Context, onReady, onExit func(), run func(func(), func()), quit func()) {
+	go func() {
+		<-ctx.Done()
+		quit()
+	}()
+
+	// macOS status bar UI must own the main thread; do not move this into a goroutine.
+	run(onReady, onExit)
 }
 
 func refreshMenu(ctx context.Context, client adminClient, statusItem, pauseItem, startupItem *systray.MenuItem, routeSlots *[]routeSlot, create func() *systray.MenuItem, bindClick func(*routeSlot)) (runtimeState, error) {
