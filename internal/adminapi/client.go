@@ -92,11 +92,7 @@ func (c *Client) Refresh(ctx context.Context, reason string) (RefreshResponse, e
 	}
 	defer resp.Body.Close()
 
-	var payload RefreshResponse
-	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
-		return RefreshResponse{}, fmt.Errorf("decode /refresh response: %w", err)
-	}
-	return payload, nil
+	return decodeJSONResponse[RefreshResponse](resp, "/refresh")
 }
 
 func (c *Client) PauseRouting(ctx context.Context) (RoutingPauseResumeResponse, error) {
@@ -131,29 +127,41 @@ func postJSON[T any](ctx context.Context, client *http.Client, path string, reqB
 		return zero, fmt.Errorf("request %s: %w", path, err)
 	}
 	defer resp.Body.Close()
-	var payload T
-	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
-		return zero, fmt.Errorf("decode %s response: %w", path, err)
-	}
-	return payload, nil
+	return decodeJSONResponse[T](resp, path)
 }
 
 func fetchJSON[T any](ctx context.Context, client *http.Client, path string) (T, error) {
-	var zero T
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://unix"+path, nil)
 	if err != nil {
+		var zero T
 		return zero, fmt.Errorf("build %s request: %w", path, err)
 	}
 
 	resp, err := client.Do(httpReq)
 	if err != nil {
+		var zero T
 		return zero, fmt.Errorf("request %s: %w", path, err)
 	}
 	defer resp.Body.Close()
 
+	return decodeJSONResponse[T](resp, path)
+}
+
+func decodeJSONResponse[T any](resp *http.Response, path string) (T, error) {
 	var payload T
-	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
-		return zero, fmt.Errorf("decode %s response: %w", path, err)
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		var errPayload struct {
+			Error string `json:"error"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&errPayload); err == nil && errPayload.Error != "" {
+			return payload, fmt.Errorf("request %s returned %s: %s", path, resp.Status, errPayload.Error)
+		}
+		return payload, fmt.Errorf("request %s returned %s", path, resp.Status)
 	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return payload, fmt.Errorf("decode %s response: %w", path, err)
+	}
+
 	return payload, nil
 }
