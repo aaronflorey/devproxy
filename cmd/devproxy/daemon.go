@@ -43,6 +43,7 @@ func newDaemonCommand() *cobra.Command {
 				Config:          cfg,
 				DockerPing:      daemon.DefaultDockerPing,
 				DockerScan:      daemon.DefaultDockerScan,
+				DockerEvents:    daemon.DefaultDockerEvents,
 				EnsureMKCert:    daemon.DefaultEnsureMKCert,
 			})
 			defer func() { _ = app.Close(context.Background()) }()

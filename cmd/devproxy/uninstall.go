@@ -41,6 +41,9 @@ func newUninstallCommand() *cobra.Command {
 				Suffix:      loadedCfg.DomainSuffix,
 				WithMenubar: withMenubar,
 				Cleanup:     scope,
+				Progress: func(step string) {
+					_, _ = fmt.Fprintf(cmd.OutOrStdout(), "==> %s\n", step)
+				},
 			}); err != nil {
 				return err
 			}

@@ -120,7 +120,7 @@ func (s *Server) handleDashboard(tmpl interface{ ExecuteTemplate(io.Writer, stri
 		data := dashboardPageData{ApprovedErrorMsg: errDaemonUnreachable, Flash: r.URL.Query().Get("flash")}
 		status, err := s.client.Status(r.Context())
 		if err != nil {
-			data.DaemonError = errDaemonUnreachable
+			data.DaemonError = "Cannot connect to daemon: " + err.Error()
 			_ = tmpl.ExecuteTemplate(w, "dashboard.html.tmpl", data)
 			return
 		}
@@ -142,8 +142,8 @@ func (s *Server) handleDashboard(tmpl interface{ ExecuteTemplate(io.Writer, stri
 				}
 			}
 		}
-		if data.NoActiveRoutes {
-			data.DaemonError = errDaemonUnreachable
+		if data.NoActiveRoutes && data.DaemonError == "" {
+			data.DaemonError = "No Docker containers with published ports found. Start a Compose project with mapped ports, then select Refresh Routes."
 		}
 		_ = tmpl.ExecuteTemplate(w, "dashboard.html.tmpl", data)
 	}

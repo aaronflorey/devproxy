@@ -38,14 +38,15 @@ type LaunchdServiceConfig struct {
 	PlistPath string
 	Program   string
 	Arguments []string
+	Env       map[string]string
 	StdoutLog string
 	StderrLog string
 }
 
 const launchdDefaultPath = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
-func DaemonServiceConfig(paths InstallPaths) LaunchdServiceConfig {
-	return LaunchdServiceConfig{
+func DaemonServiceConfig(paths InstallPaths, guiHome string) LaunchdServiceConfig {
+	cfg := LaunchdServiceConfig{
 		Label:     "com.devproxy.daemon",
 		Domain:    DomainSystem,
 		PlistPath: filepath.Join(paths.LaunchDaemons, "com.devproxy.daemon.plist"),
@@ -54,6 +55,13 @@ func DaemonServiceConfig(paths InstallPaths) LaunchdServiceConfig {
 		StdoutLog: filepath.Join(paths.LogDir, "daemon.stdout.log"),
 		StderrLog: filepath.Join(paths.LogDir, "daemon.stderr.log"),
 	}
+	if guiHome != "" {
+		cfg.Env = map[string]string{
+			"HOME":   guiHome,
+			"CAROOT": filepath.Join(guiHome, "Library", "Application Support", "mkcert"),
+		}
+	}
+	return cfg
 }
 
 func MenubarServiceConfig(paths InstallPaths, agentUID int) LaunchdServiceConfig {
@@ -165,6 +173,13 @@ func plistFor(cfg LaunchdServiceConfig) string {
 	if cfg.StderrLog != "" {
 		stderrLog = fmt.Sprintf("\n    <key>StandardErrorPath</key>\n    <string>%s</string>", cfg.StderrLog)
 	}
+	envEntries := fmt.Sprintf("\n        <key>PATH</key>\n        <string>%s</string>", launchdDefaultPath)
+	if home := strings.TrimSpace(cfg.Env["HOME"]); home != "" {
+		envEntries += fmt.Sprintf("\n        <key>HOME</key>\n        <string>%s</string>", home)
+	}
+	if caroot := strings.TrimSpace(cfg.Env["CAROOT"]); caroot != "" {
+		envEntries += fmt.Sprintf("\n        <key>CAROOT</key>\n        <string>%s</string>", caroot)
+	}
 	return fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -181,12 +196,11 @@ func plistFor(cfg LaunchdServiceConfig) string {
     <true/>%s%s
     <key>EnvironmentVariables</key>
     <dict>
-        <key>PATH</key>
-        <string>%s</string>
+%s
     </dict>%s%s
 </dict>
 </plist>
-`, cfg.Label, cfg.Program, args, sessionType, processType, launchdDefaultPath, stdoutLog, stderrLog)
+`, cfg.Label, cfg.Program, args, sessionType, processType, envEntries, stdoutLog, stderrLog)
 }
 
 func domainTarget(cfg LaunchdServiceConfig) string {
@@ -371,7 +385,7 @@ func serviceAlreadyMissing(cfg LaunchdServiceConfig) bool {
 }
 
 func StartupStatuses(paths InstallPaths) []StartupRoleStatus {
-	daemonCfg := DaemonServiceConfig(paths)
+	daemonCfg := DaemonServiceConfig(paths, "")
 	menubarCfg, menubarErr := activeMenubarServiceConfig(paths)
 
 	daemonInstalled := fileExists(daemonCfg.PlistPath)

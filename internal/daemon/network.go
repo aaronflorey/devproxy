@@ -66,10 +66,7 @@ func NewNetworkRuntime(cfg NetworkRuntimeConfig) (*NetworkRuntime, error) {
 	if snapshot == nil {
 		snapshot = func() routing.Snapshot { return routing.Snapshot{Routes: map[string]routing.Route{}} }
 	}
-	prepared, err := prepareStoredCertificates(snapshot(), cfg)
-	if err != nil {
-		return nil, err
-	}
+	prepared, _ := prepareStoredCertificates(snapshot(), cfg)
 	httpHandler := proxy.NewHTTPHandler(proxy.HTTPHandlerConfig{ManagedSuffix: cfg.ManagedSuffix, Snapshot: snapshot, RoutingPaused: cfg.RoutingPaused})
 	httpsHandler, err := proxy.NewHTTPSListener(proxy.HTTPSListenerConfig{ManagedSuffix: cfg.ManagedSuffix, Snapshot: snapshot, RoutingPaused: cfg.RoutingPaused, Certificates: cfg.Certificates, Stored: prepared})
 	if err != nil {
@@ -261,6 +258,7 @@ func prepareStoredCertificates(snapshot routing.Snapshot, cfg NetworkRuntimeConf
 
 	decisions := certs.BuildCertificateInventory(snapshot, cfg.ManagedSuffix, existing)
 	prepared := make([]certs.StoredCertificate, 0, len(decisions))
+	var certErrors []string
 	for _, decision := range decisions {
 		if decision.ReuseExisting {
 			prepared = append(prepared, existing[decision.ProjectRoot])
@@ -268,7 +266,8 @@ func prepareStoredCertificates(snapshot routing.Snapshot, cfg NetworkRuntimeConf
 		}
 		issued, err := issuer(outputDir, decision.RequiredSANs)
 		if err != nil {
-			return nil, err
+			certErrors = append(certErrors, fmt.Sprintf("%s: %v", decision.ProjectRoot, err))
+			continue
 		}
 		projectRoot := issued.ProjectRoot
 		if projectRoot == "" {
@@ -280,6 +279,9 @@ func prepareStoredCertificates(snapshot routing.Snapshot, cfg NetworkRuntimeConf
 			CertPath:    issued.CertPath,
 			KeyPath:     issued.KeyPath,
 		})
+	}
+	if len(certErrors) > 0 {
+		return prepared, fmt.Errorf("certificate issuance skipped for %d project(s): %s", len(certErrors), certErrors[0])
 	}
 	return prepared, nil
 }

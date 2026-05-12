@@ -10,6 +10,8 @@ type StatusView struct {
 	ActiveRoutes     int
 	Conflicts        int
 	Warnings         int
+	ConflictDetails  []routing.Conflict
+	WarningDetails   []routing.Warning
 	LastSync         time.Time
 	Watcher          WatcherHealth
 	DNS              DNSStatus
@@ -62,6 +64,8 @@ func BuildStatus(snapshot routing.Snapshot, watcher WatcherHealth, lastSync time
 		ActiveRoutes:     len(snapshot.Routes),
 		Conflicts:        len(snapshot.Conflicts),
 		Warnings:         len(snapshot.Warnings),
+		ConflictDetails:  append([]routing.Conflict(nil), snapshot.Conflicts...),
+		WarningDetails:   append([]routing.Warning(nil), snapshot.Warnings...),
 		LastSync:         lastSync,
 		Watcher:          watcher,
 		DNS:              runtime.DNS,

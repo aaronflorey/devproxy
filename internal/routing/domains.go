@@ -31,7 +31,10 @@ func GenerateDomains(project, service string, prefs RoutePreferences, opts Route
 	}
 
 	domains := []string{fmt.Sprintf("%s.%s.%s", service, project, opts.Suffix)}
-	shouldRoot := slices.Contains(opts.RootServices, service) || (prefs.Root != nil && *prefs.Root)
+	shouldRoot := slices.Contains(opts.RootServices, service)
+	if prefs.Root != nil {
+		shouldRoot = *prefs.Root
+	}
 	if shouldRoot {
 		domains = []string{fmt.Sprintf("%s.%s", project, opts.Suffix)}
 	}

@@ -25,7 +25,7 @@ func newStartCommand() *cobra.Command {
 				}
 				return err
 			}
-			cfg := install.DaemonServiceConfig(install.DefaultPaths())
+			cfg := install.DaemonServiceConfig(install.DefaultPaths(), "")
 			if err := install.StartService(cfg); err != nil {
 				return fmt.Errorf("start daemon service: %w", err)
 			}
@@ -47,7 +47,7 @@ func newStopCommand() *cobra.Command {
 				}
 				return err
 			}
-			cfg := install.DaemonServiceConfig(install.DefaultPaths())
+			cfg := install.DaemonServiceConfig(install.DefaultPaths(), "")
 			if err := install.StopService(context.Background(), cfg); err != nil {
 				return fmt.Errorf("stop daemon service: %w", err)
 			}

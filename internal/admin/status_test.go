@@ -37,6 +37,27 @@ func TestStatusIncludesIndependentNetworkAndCertificateHealth(t *testing.T) {
 	}
 }
 
+func TestBuildStatusIncludesConflictAndWarningDetail(t *testing.T) {
+	now := time.Now().UTC()
+	snapshot := routing.Snapshot{
+		Version:   "v2",
+		CreatedAt: now,
+		Warnings:  []routing.Warning{{Code: "invalid_label", Message: "ignored invalid label", Container: "acme-api-1", Field: "domain"}},
+		Conflicts: []routing.Conflict{{Hostname: "api.acme.test", Winner: routing.Candidate{ContainerName: "acme-api-1"}, Losers: []routing.Candidate{{ContainerName: "acme-api-2"}}, Reason: "higher priority winner kept route"}},
+	}
+
+	status := BuildStatus(snapshot, WatcherHealth{Connected: true}, now, NetworkRuntimeStatus{})
+	if len(status.ConflictDetails) != 1 {
+		t.Fatalf("expected conflict detail, got %+v", status.ConflictDetails)
+	}
+	if status.ConflictDetails[0].Losers[0].ContainerName != "acme-api-2" {
+		t.Fatalf("expected loser container to be preserved, got %+v", status.ConflictDetails[0])
+	}
+	if len(status.WarningDetails) != 1 || status.WarningDetails[0].Message != "ignored invalid label" {
+		t.Fatalf("expected warning detail, got %+v", status.WarningDetails)
+	}
+}
+
 func TestRoutesProjectionIncludesDeterministicOpenURLAndFallbackReason_D04(t *testing.T) {
 	snapshot := routing.Snapshot{
 		Routes: map[string]routing.Route{

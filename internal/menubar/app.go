@@ -74,7 +74,7 @@ func buildMenuState(status admin.StatusView, routes []admin.RouteView, startup [
 func offlineMenuState(err error) menuState {
 	errLine := offlineCopy
 	if err != nil && strings.TrimSpace(err.Error()) != "" {
-		errLine = offlineCopy
+		errLine = "Cannot connect: " + strings.TrimSpace(err.Error())
 	}
 	return menuState{
 		HealthLine:       "Daemon: offline",

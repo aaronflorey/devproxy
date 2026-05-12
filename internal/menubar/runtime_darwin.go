@@ -156,13 +156,11 @@ func Run(ctx context.Context, client adminClient, op opener) error {
 			ticker := time.NewTicker(3 * time.Second)
 			defer ticker.Stop()
 			for {
-				stateInfo, err := refreshMenu(context.Background(), client, statusItem, pauseItem, startupItem, &routeSlots, routeSlotFactory, routeClickBinder)
+				_, err := refreshMenu(context.Background(), client, statusItem, pauseItem, startupItem, &routeSlots, routeSlotFactory, routeClickBinder)
 				if err != nil {
 					state := offlineMenuState(err)
 					statusItem.SetTitle(state.HealthLine + " — " + state.ErrorLine)
 					pauseItem.SetTitle("Pause Routing")
-				} else {
-					_ = stateInfo
 				}
 				select {
 				case <-ticker.C:

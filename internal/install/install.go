@@ -7,9 +7,15 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 )
 
 const daemonProgramPath = "/usr/local/bin/devproxy"
+
+var (
+	mkcertLookPath   = exec.LookPath
+	mkcertInstallRun = runMKCertInstall
+)
 
 type Options struct {
 	Suffix      string
@@ -82,8 +88,23 @@ func NewInstaller(deps Dependencies) *Installer {
 }
 
 func ensureMKCertInstalled(context.Context) error {
-	if _, err := exec.LookPath("mkcert"); err != nil {
+	if _, err := mkcertLookPath("mkcert"); err != nil {
 		return fmt.Errorf("mkcert not found: install mkcert before enabling HTTPS: %w", err)
+	}
+	if err := mkcertInstallRun(); err != nil {
+		return fmt.Errorf("mkcert trust store install failed: %w", err)
+	}
+	return nil
+}
+
+func runMKCertInstall() error {
+	cmd := exec.Command("mkcert", "-install")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		if len(output) == 0 {
+			return err
+		}
+		return fmt.Errorf("%w: %s", err, strings.TrimSpace(string(output)))
 	}
 	return nil
 }
@@ -262,12 +283,17 @@ func (i *Installer) Install(ctx context.Context, opts Options) error {
 		paths = DefaultPaths()
 	}
 
+	guiHome := ""
+	if _, resolvedGUIHome, err := i.deps.ResolveGUIUser(); err == nil {
+		guiHome = resolvedGUIHome
+	}
+
 	progress("Ensuring install paths")
 	if err := i.deps.EnsurePaths(paths); err != nil {
 		return fmt.Errorf("ensure install paths: %w", err)
 	}
 	progress("Writing resolver configuration")
-	if err := i.deps.WriteResolver(ResolverConfig{Suffix: opts.Suffix, ResolverDir: paths.ResolverDir}); err != nil {
+	if err := i.deps.WriteResolver(ResolverConfig{Suffix: opts.Suffix, ResolverDir: paths.ResolverDir, StateDir: paths.StateDir}); err != nil {
 		return fmt.Errorf("install managed resolver: %w", err)
 	}
 	progress("Bootstrapping TLS prerequisites")
@@ -279,7 +305,7 @@ func (i *Installer) Install(ctx context.Context, opts Options) error {
 		return fmt.Errorf("stage daemon executable at %q: %w", daemonProgramPath, err)
 	}
 
-	daemonCfg := DaemonServiceConfig(paths)
+	daemonCfg := DaemonServiceConfig(paths, guiHome)
 	progress("Installing daemon service")
 	if err := i.deps.InstallDaemonService(daemonCfg); err != nil {
 		return fmt.Errorf("install daemon service: %w", err)

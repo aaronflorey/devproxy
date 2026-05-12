@@ -209,4 +209,42 @@ func TestReconcilerLabelOverridesConfigForPortAndScheme(t *testing.T) {
 	}
 }
 
+func TestReconcilerExplicitRootFalseSuppressesDefaultRootHostname(t *testing.T) {
+	rootFalse := false
+	rec := NewReconciler(ReconcilerOptions{
+		Suffix:       "test",
+		RootServices: []string{"app", "web", "nginx", "laravel.test"},
+		Overrides: map[string]config.ProjectConfig{
+			"acme": {
+				Services: map[string]config.ServiceOverride{
+					"app": {Root: &rootFalse},
+				},
+			},
+		},
+	})
+
+	containers := []ContainerState{{
+		ID:      "1",
+		Name:    "acme-app-1",
+		Running: true,
+		Labels: map[string]string{
+			"com.docker.compose.project": "acme",
+			"com.docker.compose.service": "app",
+		},
+		Ports: []discovery.PublishedPort{{HostPort: 8080, Protocol: "tcp"}},
+	}}
+
+	if err := rec.RebuildSnapshot(containers); err != nil {
+		t.Fatalf("rebuild failed: %v", err)
+	}
+
+	snap := rec.Snapshot()
+	if _, ok := snap.Routes["acme.test"]; ok {
+		t.Fatalf("expected explicit root false to suppress root hostname, got %+v", snap.Routes)
+	}
+	if _, ok := snap.Routes["app.acme.test"]; !ok {
+		t.Fatalf("expected default service hostname to remain published, got %+v", snap.Routes)
+	}
+}
+
 func boolPtr(v bool) *bool { return &v }
