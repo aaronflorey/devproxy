@@ -9,12 +9,70 @@ import (
 	"testing"
 )
 
+func TestEnsureMKCertInstalledRunsTrustStoreBootstrap(t *testing.T) {
+	t.Parallel()
+
+	origLookPath := mkcertLookPath
+	origInstallRun := mkcertInstallRun
+	t.Cleanup(func() {
+		mkcertLookPath = origLookPath
+		mkcertInstallRun = origInstallRun
+	})
+
+	lookedUp := false
+	installed := false
+	mkcertLookPath = func(file string) (string, error) {
+		lookedUp = true
+		if file != "mkcert" {
+			t.Fatalf("expected mkcert lookup, got %q", file)
+		}
+		return "/opt/homebrew/bin/mkcert", nil
+	}
+	mkcertInstallRun = func() error {
+		installed = true
+		return nil
+	}
+
+	if err := ensureMKCertInstalled(context.Background()); err != nil {
+		t.Fatalf("ensure mkcert installed: %v", err)
+	}
+	if !lookedUp {
+		t.Fatalf("expected mkcert lookup")
+	}
+	if !installed {
+		t.Fatalf("expected mkcert -install bootstrap")
+	}
+}
+
+func TestEnsureMKCertInstalledReturnsTrustStoreInstallError(t *testing.T) {
+	t.Parallel()
+
+	origLookPath := mkcertLookPath
+	origInstallRun := mkcertInstallRun
+	t.Cleanup(func() {
+		mkcertLookPath = origLookPath
+		mkcertInstallRun = origInstallRun
+	})
+
+	mkcertLookPath = func(string) (string, error) { return "/opt/homebrew/bin/mkcert", nil }
+	mkcertInstallRun = func() error { return errors.New("permission denied") }
+
+	err := ensureMKCertInstalled(context.Background())
+	if err == nil {
+		t.Fatalf("expected mkcert trust store install error")
+	}
+	if !strings.Contains(err.Error(), "mkcert trust store install failed") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestInstallCreatesPathsResolverBootstrapsCertsAndStartsDaemon(t *testing.T) {
 	t.Parallel()
 
 	var calls []string
 	installer := NewInstaller(Dependencies{
 		CurrentEUID: func() int { return 0 },
+		ResolveGUIUser: func() (int, string, error) { return 501, "/Users/dev", nil },
 		EnsurePaths: func(InstallPaths) error {
 			calls = append(calls, "paths")
 			return nil
@@ -73,6 +131,7 @@ func TestInstallFailsWithActionableErrorWhenDaemonBinaryStagingFails(t *testing.
 	daemonInstalled := false
 	installer := NewInstaller(Dependencies{
 		CurrentEUID:           func() int { return 0 },
+		ResolveGUIUser:        func() (int, string, error) { return 501, "/Users/dev", nil },
 		EnsurePaths:           func(InstallPaths) error { return nil },
 		WriteResolver:         func(ResolverConfig) error { return nil },
 		BootstrapCertificates: func(context.Context) error { return nil },
@@ -108,6 +167,7 @@ func TestInstallInstallsMenubarOnlyWhenOptedIn(t *testing.T) {
 	var menubarInstallCount int
 	installer := NewInstaller(Dependencies{
 		CurrentEUID:             func() int { return 0 },
+		ResolveGUIUser:          func() (int, string, error) { return 501, "/Users/dev", nil },
 		EnsurePaths:             func(InstallPaths) error { return nil },
 		WriteResolver:           func(ResolverConfig) error { return nil },
 		BootstrapCertificates:   func(context.Context) error { return nil },
@@ -140,7 +200,7 @@ func TestLaunchdRolesUseSeparateDomainsAndLabels(t *testing.T) {
 	t.Parallel()
 
 	paths := DefaultPaths()
-	daemonCfg := DaemonServiceConfig(paths)
+	daemonCfg := DaemonServiceConfig(paths, "")
 	if daemonCfg.Domain != DomainSystem {
 		t.Fatalf("expected daemon domain %q, got %q", DomainSystem, daemonCfg.Domain)
 	}
@@ -166,6 +226,18 @@ func TestLaunchdRolesUseSeparateDomainsAndLabels(t *testing.T) {
 	}
 }
 
+func TestDaemonServiceConfigUsesGUIUserMkcertHome(t *testing.T) {
+	t.Parallel()
+
+	cfg := DaemonServiceConfig(DefaultPaths(), "/Users/alice")
+	if got, want := cfg.Env["HOME"], "/Users/alice"; got != want {
+		t.Fatalf("expected HOME %q, got %q", want, got)
+	}
+	if got, want := cfg.Env["CAROOT"], "/Users/alice/Library/Application Support/mkcert"; got != want {
+		t.Fatalf("expected CAROOT %q, got %q", want, got)
+	}
+}
+
 func TestInstallWithMenubarTargetsResolvedGUIUser(t *testing.T) {
 	t.Parallel()
 
@@ -179,6 +251,7 @@ func TestInstallWithMenubarTargetsResolvedGUIUser(t *testing.T) {
 
 	installer := NewInstaller(Dependencies{
 		CurrentEUID:             func() int { return 0 },
+		ResolveGUIUser:          func() (int, string, error) { return 502, "/Users/alice", nil },
 		EnsurePaths:             func(InstallPaths) error { return nil },
 		WriteResolver:           func(ResolverConfig) error { return nil },
 		BootstrapCertificates:   func(context.Context) error { return nil },
@@ -236,6 +309,7 @@ func TestInstallWithMenubarFailsExplicitlyWithoutGUIUser(t *testing.T) {
 
 	installer := NewInstaller(Dependencies{
 		CurrentEUID:           func() int { return 0 },
+		ResolveGUIUser:        func() (int, string, error) { return 501, "/Users/dev", nil },
 		EnsurePaths:           func(InstallPaths) error { return nil },
 		WriteResolver:         func(ResolverConfig) error { return nil },
 		BootstrapCertificates: func(context.Context) error { return nil },
@@ -266,6 +340,7 @@ func TestInstallWrapsResolverErrors(t *testing.T) {
 
 	installer := NewInstaller(Dependencies{
 		CurrentEUID:           func() int { return 0 },
+		ResolveGUIUser:        func() (int, string, error) { return 501, "/Users/dev", nil },
 		EnsurePaths:           func(InstallPaths) error { return nil },
 		WriteResolver:         func(ResolverConfig) error { return errors.New("permission denied") },
 		BootstrapCertificates: func(context.Context) error { return nil },
@@ -286,6 +361,7 @@ func TestInstallWrapsDaemonStartupVerificationErrors(t *testing.T) {
 
 	installer := NewInstaller(Dependencies{
 		CurrentEUID:           func() int { return 0 },
+		ResolveGUIUser:        func() (int, string, error) { return 501, "/Users/dev", nil },
 		EnsurePaths:           func(InstallPaths) error { return nil },
 		WriteResolver:         func(ResolverConfig) error { return nil },
 		BootstrapCertificates: func(context.Context) error { return nil },
@@ -314,6 +390,7 @@ func TestInstallWrapsMenubarStartupVerificationErrors(t *testing.T) {
 
 	installer := NewInstaller(Dependencies{
 		CurrentEUID:             func() int { return 0 },
+		ResolveGUIUser:          func() (int, string, error) { return 501, "/Users/dev", nil },
 		EnsurePaths:             func(InstallPaths) error { return nil },
 		WriteResolver:           func(ResolverConfig) error { return nil },
 		BootstrapCertificates:   func(context.Context) error { return nil },

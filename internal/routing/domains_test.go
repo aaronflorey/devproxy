@@ -24,4 +24,22 @@ func TestDomainGeneration(t *testing.T) {
 	if len(domains) != 0 || len(warnings) == 0 {
 		t.Fatalf("expected public suffix rejection")
 	}
+
+	rootFalse := false
+	domains, warnings = GenerateDomains("acme", "app", RoutePreferences{Root: &rootFalse}, opts)
+	if len(warnings) != 0 {
+		t.Fatalf("expected no warnings for explicit root false, got %v", warnings)
+	}
+	if len(domains) != 1 || domains[0] != "app.acme.test" {
+		t.Fatalf("expected explicit root false to suppress root domain, got %v", domains)
+	}
+
+	rootTrue := true
+	domains, warnings = GenerateDomains("acme", "api", RoutePreferences{Root: &rootTrue}, opts)
+	if len(warnings) != 0 {
+		t.Fatalf("expected no warnings for explicit root true, got %v", warnings)
+	}
+	if len(domains) != 1 || domains[0] != "acme.test" {
+		t.Fatalf("expected explicit root true to force root domain, got %v", domains)
+	}
 }

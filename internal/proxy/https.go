@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"net/http"
 	"strings"
@@ -33,7 +34,7 @@ func NewHTTPSListener(cfg HTTPSListenerConfig) (*HTTPSListener, error) {
 
 	inventory := map[string]tls.Certificate{}
 	for k, v := range cfg.Certificates {
-		inventory[normalizeHostname(k)] = v
+		inventory[normalizeHostname(k)] = ensureParsedLeaf(v)
 	}
 
 	if len(inventory) == 0 && len(cfg.Stored) > 0 {
@@ -45,7 +46,7 @@ func NewHTTPSListener(cfg HTTPSListenerConfig) (*HTTPSListener, error) {
 			if err != nil {
 				return nil, fmt.Errorf("load certificate %s: %w", stored.ProjectRoot, err)
 			}
-			inventory[normalizeHostname(stored.ProjectRoot)] = loaded
+			inventory[normalizeHostname(stored.ProjectRoot)] = ensureParsedLeaf(loaded)
 		}
 	}
 
@@ -123,4 +124,17 @@ func wildcardMatches(host, root string) bool {
 	hostLabels := strings.Split(host, ".")
 	rootLabels := strings.Split(root, ".")
 	return len(hostLabels) == len(rootLabels)+1
+}
+
+func ensureParsedLeaf(cert tls.Certificate) tls.Certificate {
+	if cert.Leaf != nil || len(cert.Certificate) == 0 {
+		return cert
+	}
+
+	leaf, err := x509.ParseCertificate(cert.Certificate[0])
+	if err != nil {
+		return cert
+	}
+	cert.Leaf = leaf
+	return cert
 }

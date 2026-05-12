@@ -115,7 +115,7 @@ func TestMenubarOfflineStateUsesApprovedCopyAndKeepsRepairActions(t *testing.T) 
 	if got := state.HealthLine; got != "Daemon: offline" {
 		t.Fatalf("expected offline health line, got %q", got)
 	}
-	if got := state.ErrorLine; got != "DevProxy can’t reach the daemon right now. Ensure the daemon is running, then select Run Doctor for repair guidance." {
+	if got := state.ErrorLine; got != "Cannot connect: admin offline" {
 		t.Fatalf("unexpected offline copy: %q", got)
 	}
 	if !state.RepairActions.RunDoctor {
@@ -126,6 +126,12 @@ func TestMenubarOfflineStateUsesApprovedCopyAndKeepsRepairActions(t *testing.T) 
 	}
 	if !state.RepairActions.OpenDashboard {
 		t.Fatalf("expected open dashboard repair action to remain available")
+	}
+
+	// Nil error should show generic approved copy
+	nilState := offlineMenuState(nil)
+	if nilState.ErrorLine != offlineCopy {
+		t.Fatalf("expected approved copy for nil error, got %q", nilState.ErrorLine)
 	}
 }
 

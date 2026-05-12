@@ -3,7 +3,9 @@ package daemon
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -115,6 +117,130 @@ func TestRefreshRecordsDockerScanFailures(t *testing.T) {
 	if issues[0].Timestamp.Before(time.Now().Add(-time.Minute)) {
 		t.Fatalf("expected recent issue timestamp, got %+v", issues[0])
 	}
+}
+
+func TestAppStartProcessesLiveDockerEvents(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	eventCh := make(chan DockerEvent, 1)
+	errCh := make(chan error)
+	var mu sync.RWMutex
+	containers := []ContainerState{testContainer("acme", "api", "acme-api-1", 8080)}
+	scanCalls := 0
+	app := NewApp(AppConfig{
+		Config:           configFixture(),
+		AdminSocketPath:  filepath.Join(t.TempDir(), "admin.sock"),
+		DashboardAddress: "127.0.0.1:0",
+		DNSAddress:       "127.0.0.1:0",
+		HTTPAddress:      "127.0.0.1:0",
+		HTTPSAddress:     "127.0.0.1:0",
+		DockerScan: func(context.Context) ([]ContainerState, error) {
+			mu.Lock()
+			defer mu.Unlock()
+			scanCalls++
+			return append([]ContainerState(nil), containers...), nil
+		},
+		DockerEvents: func(context.Context) (*EventStream, error) {
+			return &EventStream{Events: eventCh, Errors: errCh}, nil
+		},
+	})
+	defer func() { _ = app.Close(context.Background()) }()
+
+	if err := app.Start(ctx); err != nil {
+		t.Fatalf("start failed: %v", err)
+	}
+
+	mu.Lock()
+	containers = []ContainerState{
+		testContainer("acme", "api", "acme-api-1", 8080),
+		testContainer("acme", "docs", "acme-docs-1", 8081),
+	}
+	mu.Unlock()
+	eventCh <- DockerEvent{Action: "start"}
+
+	waitFor(t, func() bool {
+		_, ok := app.reconciler.Snapshot().Routes["docs.acme.test"]
+		return ok && scanCalls >= 2
+	}, "live docker event to rebuild snapshot")
+}
+
+func TestAppWatcherReconnectsWithFullResync(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var mu sync.RWMutex
+	containers := []ContainerState{testContainer("acme", "api", "acme-api-1", 8080)}
+	scanCalls := 0
+	streamErrors := []chan error{make(chan error, 1), make(chan error)}
+	streamEvents := []chan DockerEvent{make(chan DockerEvent), make(chan DockerEvent)}
+	connectCount := 0
+	app := NewApp(AppConfig{
+		Config:           configFixture(),
+		AdminSocketPath:  filepath.Join(t.TempDir(), "admin.sock"),
+		DashboardAddress: "127.0.0.1:0",
+		DNSAddress:       "127.0.0.1:0",
+		HTTPAddress:      "127.0.0.1:0",
+		HTTPSAddress:     "127.0.0.1:0",
+		DockerScan: func(context.Context) ([]ContainerState, error) {
+			mu.Lock()
+			defer mu.Unlock()
+			scanCalls++
+			return append([]ContainerState(nil), containers...), nil
+		},
+		DockerEvents: func(context.Context) (*EventStream, error) {
+			stream := &EventStream{Events: streamEvents[connectCount], Errors: streamErrors[connectCount]}
+			connectCount++
+			return stream, nil
+		},
+	})
+	defer func() { _ = app.Close(context.Background()) }()
+
+	if err := app.Start(ctx); err != nil {
+		t.Fatalf("start failed: %v", err)
+	}
+
+	streamErrors[0] <- errors.New("docker events dropped")
+	waitFor(t, func() bool { return !app.watcher.Health().Connected }, "watcher disconnect after stream error")
+
+	mu.Lock()
+	containers = []ContainerState{testContainer("acme", "docs", "acme-docs-1", 8081)}
+	mu.Unlock()
+
+	waitFor(t, func() bool {
+		health := app.watcher.Health()
+		_, ok := app.reconciler.Snapshot().Routes["docs.acme.test"]
+		return health.Connected && !health.LastReconnectSync.IsZero() && ok && scanCalls >= 2
+	}, "watcher reconnect with full resync")
+}
+
+func testContainer(project, service, name string, port int) ContainerState {
+	return ContainerState{
+		ID:      name,
+		Name:    name,
+		Running: true,
+		Labels: map[string]string{
+			"com.docker.compose.project": project,
+			"com.docker.compose.service": service,
+		},
+		Ports: []discovery.PublishedPort{{HostPort: port, Protocol: "tcp"}},
+	}
+}
+
+func waitFor(t *testing.T, check func() bool, description string) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if check() {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("timed out waiting for %s", description)
 }
 
 func configFixture() config.Config {

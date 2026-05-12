@@ -6,12 +6,16 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/pem"
 	"math/big"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/mochaka/devproxy/internal/certs"
 	"github.com/mochaka/devproxy/internal/routing"
 )
 
@@ -144,6 +148,29 @@ func TestHTTPSListenerSharesFriendlyNoRouteAndPausedBehavior(t *testing.T) {
 	})
 }
 
+func TestHTTPSListenerSelectsStoredWildcardCertificateForSubdomain(t *testing.T) {
+	certPath, keyPath := mustWriteTestCertificateFiles(t, []string{"acme.test", "*.acme.test"})
+
+	l, err := NewHTTPSListener(HTTPSListenerConfig{
+		ManagedSuffix: "test",
+		Snapshot: staticSnapshot(routing.Snapshot{Routes: map[string]routing.Route{
+			"mailpit.acme.test": {Hostname: "mailpit.acme.test", Upstream: routing.Upstream{Host: "127.0.0.1", Port: 8025, Scheme: "http"}},
+		}}),
+		Stored: []certs.StoredCertificate{{ProjectRoot: "acme.test", SANs: []string{"acme.test", "*.acme.test"}, CertPath: certPath, KeyPath: keyPath}},
+	})
+	if err != nil {
+		t.Fatalf("new https listener: %v", err)
+	}
+
+	cert, err := l.TLSConfig().GetCertificate(&tls.ClientHelloInfo{ServerName: "mailpit.acme.test"})
+	if err != nil {
+		t.Fatalf("expected stored wildcard certificate selection: %v", err)
+	}
+	if cert == nil {
+		t.Fatalf("expected certificate for stored wildcard subdomain")
+	}
+}
+
 func mustTestCertificate(t *testing.T, dnsNames []string) tls.Certificate {
 	t.Helper()
 
@@ -168,4 +195,29 @@ func mustTestCertificate(t *testing.T, dnsNames []string) tls.Certificate {
 	}
 
 	return tls.Certificate{Certificate: [][]byte{der}, PrivateKey: key, Leaf: tmpl}
+}
+
+func mustWriteTestCertificateFiles(t *testing.T, dnsNames []string) (string, string) {
+	t.Helper()
+
+	cert := mustTestCertificate(t, dnsNames)
+	key, ok := cert.PrivateKey.(*rsa.PrivateKey)
+	if !ok {
+		t.Fatalf("expected rsa private key, got %T", cert.PrivateKey)
+	}
+
+	dir := t.TempDir()
+	certPath := filepath.Join(dir, "cert.pem")
+	keyPath := filepath.Join(dir, "key.pem")
+
+	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: cert.Certificate[0]})
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})
+	if err := os.WriteFile(certPath, certPEM, 0o600); err != nil {
+		t.Fatalf("write cert pem: %v", err)
+	}
+	if err := os.WriteFile(keyPath, keyPEM, 0o600); err != nil {
+		t.Fatalf("write key pem: %v", err)
+	}
+
+	return certPath, keyPath
 }

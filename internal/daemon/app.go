@@ -19,11 +19,13 @@ import (
 type AppConfig struct {
 	AdminSocketPath     string
 	DashboardAddress    string
+	DNSAddress          string
 	HTTPAddress         string
 	HTTPSAddress        string
 	Config              config.Config
 	DockerPing          func(context.Context) error
 	DockerScan          func(context.Context) ([]ContainerState, error)
+	DockerEvents        DockerEventSource
 	EnsureMKCert        func(context.Context) error
 	BuildNetworkRuntime func(context.Context) error
 }
@@ -96,6 +98,7 @@ func (a *App) Start(ctx context.Context) error {
 		RoutingPaused:        a.reconciler.IsRoutingPaused,
 		StoredCertificates:   map[string]certs.StoredCertificate{},
 		CertificateOutputDir: filepath.Dir(a.cfg.AdminSocketPath),
+		DNSAddress:           a.cfg.DNSAddress,
 		HTTPAddress:          a.cfg.HTTPAddress,
 		HTTPSAddress:         a.cfg.HTTPSAddress,
 	})
@@ -138,6 +141,9 @@ func (a *App) Start(ctx context.Context) error {
 			a.recordIssue("dashboard", "start", err.Error())
 		}
 	}()
+	if a.cfg.DockerEvents != nil && a.cfg.DockerScan != nil {
+		go a.watchDockerEvents(ctx)
+	}
 	return nil
 }
 
@@ -257,8 +263,7 @@ func (a *App) stateSnapshot() adminapi.StateSnapshot {
 
 func (a *App) refreshFromDocker(ctx context.Context) error {
 	if a.cfg.DockerScan == nil {
-		a.watcher.OnReconnect(nil)
-		return a.reconciler.RebuildSnapshot(nil)
+		return a.watcher.OnReconnect(nil)
 	}
 
 	containers, err := a.cfg.DockerScan(ctx)
@@ -268,6 +273,112 @@ func (a *App) refreshFromDocker(ctx context.Context) error {
 		return fmt.Errorf("docker container sync failed: %w", err)
 	}
 
-	a.watcher.OnReconnect(containers)
+	return a.watcher.OnReconnect(containers)
+}
+
+func (a *App) watchDockerEvents(ctx context.Context) {
+	for {
+		stream, err := a.cfg.DockerEvents(ctx)
+		if err != nil {
+			if ctx.Err() != nil {
+				return
+			}
+			a.recordWatcherIssue("events-connect", err)
+			if !waitForWatcherRetry(ctx) {
+				return
+			}
+			continue
+		}
+
+		if !a.watcher.Health().Connected {
+			if err := a.resyncWatcher(ctx); err != nil {
+				_ = stream.Close()
+				if !waitForWatcherRetry(ctx) {
+					return
+				}
+				continue
+			}
+		}
+
+		if err := a.consumeDockerEvents(ctx, stream); err != nil {
+			_ = stream.Close()
+			if ctx.Err() != nil {
+				return
+			}
+			a.recordWatcherIssue("events-stream", err)
+			if !waitForWatcherRetry(ctx) {
+				return
+			}
+			continue
+		}
+		return
+	}
+}
+
+func (a *App) consumeDockerEvents(ctx context.Context, stream *EventStream) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case err, ok := <-stream.Errors:
+			if !ok || err == nil {
+				return errors.New("docker event stream closed")
+			}
+			return err
+		case event, ok := <-stream.Events:
+			if !ok {
+				return errors.New("docker event stream closed")
+			}
+			a.handleDockerEvent(ctx, event)
+		}
+	}
+}
+
+func (a *App) handleDockerEvent(ctx context.Context, event DockerEvent) {
+	if !isSupportedDockerEvent(event.Action) {
+		return
+	}
+	containers, err := a.cfg.DockerScan(ctx)
+	if err != nil {
+		a.recordWatcherIssue("event-sync", fmt.Errorf("sync %s event: %w", event.Action, err))
+		return
+	}
+	if !a.watcher.Health().Connected {
+		if err := a.watcher.OnReconnect(containers); err != nil {
+			a.recordWatcherIssue("event-resync", err)
+		}
+		return
+	}
+	if err := a.watcher.HandleEvent(event.Action, containers); err != nil {
+		a.recordIssue("docker", "event-ignore", err.Error())
+	}
+}
+
+func (a *App) resyncWatcher(ctx context.Context) error {
+	containers, err := a.cfg.DockerScan(ctx)
+	if err != nil {
+		a.recordWatcherIssue("reconnect-sync", err)
+		return err
+	}
+	if err := a.watcher.OnReconnect(containers); err != nil {
+		a.recordWatcherIssue("reconnect-sync", err)
+		return err
+	}
 	return nil
+}
+
+func (a *App) recordWatcherIssue(action string, err error) {
+	a.watcher.OnDisconnect()
+	a.recordIssue("docker", action, err.Error())
+}
+
+func waitForWatcherRetry(ctx context.Context) bool {
+	timer := time.NewTimer(200 * time.Millisecond)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return true
+	}
 }

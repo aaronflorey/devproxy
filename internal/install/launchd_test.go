@@ -276,6 +276,26 @@ func TestPlistIncludesEnvironmentPath(t *testing.T) {
 	}
 }
 
+func TestPlistIncludesDaemonMKCertEnvironmentWhenProvided(t *testing.T) {
+	t.Parallel()
+
+	plist := plistFor(LaunchdServiceConfig{
+		Label:     "com.devproxy.daemon",
+		Program:   "/usr/local/bin/devproxy",
+		Arguments: []string{"daemon"},
+		Env: map[string]string{
+			"HOME":   "/Users/alice",
+			"CAROOT": "/Users/alice/Library/Application Support/mkcert",
+		},
+	})
+	if !strings.Contains(plist, "<key>HOME</key>") || !strings.Contains(plist, "/Users/alice") {
+		t.Fatalf("expected launchd plist to include HOME environment, got %q", plist)
+	}
+	if !strings.Contains(plist, "<key>CAROOT</key>") || !strings.Contains(plist, "/Users/alice/Library/Application Support/mkcert") {
+		t.Fatalf("expected launchd plist to include CAROOT environment, got %q", plist)
+	}
+}
+
 func TestMenubarServiceConfigWritesLogsToUserLibrary(t *testing.T) {
 	t.Parallel()
 
