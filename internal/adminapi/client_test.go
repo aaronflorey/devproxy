@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"path/filepath"
@@ -61,7 +62,7 @@ func TestClientStatusRoutesAndLogsDecodePayloads(t *testing.T) {
 	}
 }
 
-func TestClientRefreshSurfacesDaemonErrorVerbatim(t *testing.T) {
+func TestClientRefreshReturnsErrorOnDaemonFailure(t *testing.T) {
 	server, socketPath := mustStartTestServer(t, StateSnapshot{})
 	t.Cleanup(func() { _ = server.Close(context.Background()) })
 
@@ -70,12 +71,12 @@ func TestClientRefreshSurfacesDaemonErrorVerbatim(t *testing.T) {
 	})
 
 	client := NewClient(socketPath)
-	resp, err := client.Refresh(context.Background(), "operator")
-	if err != nil {
-		t.Fatalf("refresh transport error: %v", err)
+	_, err := client.Refresh(context.Background(), "operator")
+	if err == nil {
+		t.Fatal("expected refresh to return an error")
 	}
-	if resp.Error != "docker ping failed" || resp.Refreshed {
-		t.Fatalf("unexpected refresh payload: %+v", resp)
+	if !strings.Contains(err.Error(), "/refresh") || !strings.Contains(err.Error(), "docker ping failed") {
+		t.Fatalf("expected explicit refresh failure, got %v", err)
 	}
 }
 
@@ -210,6 +211,35 @@ func TestClientSupportsRoutingPauseResumeAndStartupEndpoints_D01_D02_D03(t *test
 	}
 	if toggle.Role != "menubar" || !toggle.Enabled {
 		t.Fatalf("unexpected startup toggle response: %+v", toggle)
+	}
+}
+
+func TestClientStartupStatusReturnsErrorOnNonSuccessResponse(t *testing.T) {
+	socketPath := filepath.Join(t.TempDir(), "startup-error.sock")
+	listener, err := net.Listen("unix", socketPath)
+	if err != nil {
+		t.Fatalf("listen startup socket: %v", err)
+	}
+	t.Cleanup(func() { _ = listener.Close() })
+
+	go func() {
+		conn, acceptErr := listener.Accept()
+		if acceptErr != nil {
+			return
+		}
+		defer conn.Close()
+		_ = drainHTTPHeaders(conn)
+		body := `{"error":"launchctl unavailable"}`
+		_, _ = conn.Write([]byte(fmt.Sprintf("HTTP/1.1 503 Service Unavailable\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n%s", len(body), body)))
+	}()
+
+	client := NewClient(socketPath)
+	_, err = client.StartupStatus(context.Background())
+	if err == nil {
+		t.Fatal("expected startup status to return an error")
+	}
+	if !strings.Contains(err.Error(), "/startup") || !strings.Contains(err.Error(), "launchctl unavailable") {
+		t.Fatalf("expected explicit startup failure, got %v", err)
 	}
 }
 
