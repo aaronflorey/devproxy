@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Phase 4 complete
-last_updated: "2026-05-06T23:45:31Z"
-last_activity: 2026-05-06
+stopped_at: Milestone `v1.0` closeout complete
+last_updated: "2026-05-12T00:00:00Z"
+last_activity: 2026-05-12
 progress:
   total_phases: 4
   completed_phases: 4
@@ -18,17 +18,17 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-05-05)
+See: .planning/PROJECT.md (updated 2026-05-12)
 
 **Core value:** A developer can run `docker compose up` and immediately use predictable local domains for each routable service without editing Compose files, `/etc/hosts`, or local proxy configs.
-**Current focus:** Phase 04 — menu-bar-and-dashboard-ux
+**Current focus:** Milestone `v1.0` closeout complete
 
 ## Current Position
 
-Phase: 04 (menu-bar-and-dashboard-ux) — EXECUTING
+Phase: Completed
 Plan: 4 of 4
-Status: Phase 4 complete after approved macOS human verification
-Last activity: 2026-05-06
+Status: Milestone `v1.0` is closed; audit and archive artifacts are recorded
+Last activity: 2026-05-12
 
 Progress: [██████████] 100%
 
@@ -133,6 +133,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-05-06T23:45:31Z
-Stopped at: Phase 4 complete
-Resume file: .planning/phases/04-menu-bar-and-dashboard-ux/04-VERIFICATION.md
+Last session: 2026-05-12T00:00:00Z
+Stopped at: Milestone `v1.0` closeout complete
+Resume file: .planning/archive/v1.0-CLOSEOUT.md

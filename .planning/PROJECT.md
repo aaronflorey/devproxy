@@ -12,15 +12,15 @@ A developer can run `docker compose up` and immediately use predictable local do
 
 ### Validated
 
-(None yet — ship to validate)
+- [x] Automatic route discovery from running Docker Compose containers with safe defaults and clear conflict handling (`v1.0`)
+- [x] Local DNS plus HTTP/HTTPS proxying so discovered services are reachable through development domains (`v1.0`)
+- [x] macOS install, daemon lifecycle, debugging, and status surfaces that make the system reliable to operate (`v1.0`)
+- [x] Laravel Sail-friendly behavior and optional Docker label/config overrides for non-default routing cases (`v1.0`)
+- [x] Menu bar visibility into active mappings and daemon health (`v1.0`)
 
 ### Active
 
-- [ ] Automatic route discovery from running Docker Compose containers with safe defaults and clear conflict handling
-- [ ] Local DNS plus HTTP/HTTPS proxying so discovered services are reachable through development domains
-- [ ] macOS install, daemon lifecycle, debugging, and status surfaces that make the system reliable to operate
-- [ ] Laravel Sail-friendly behavior and optional Docker label/config overrides for non-default routing cases
-- [ ] Menu bar visibility into active mappings and daemon health
+None. `v1.0` scope is complete; future scope is tracked in `.planning/REQUIREMENTS.md` under `v2 Requirements`.
 
 ### Out of Scope
 
@@ -39,6 +39,7 @@ A developer can run `docker compose up` and immediately use predictable local do
 - Routing only applies to running containers with published TCP ports, with deterministic conflict resolution and explicit warnings when multiple containers claim the same domain.
 - Laravel Sail is a first-class target: `laravel.test` should map to the project root domain, and common companion services like Mailpit should get sensible subdomains automatically.
 - Operational clarity matters as much as routing: warnings, conflicts, and health problems need to appear consistently in `doctor`, `status`, the dashboard, and logs.
+- Milestone `v1.0` has passing verification across all four roadmap phases, with a passing milestone audit recorded in `.planning/v1.0-MILESTONE-AUDIT.md`.
 
 ## Constraints
 
@@ -53,12 +54,12 @@ A developer can run `docker compose up` and immediately use predictable local do
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Product name and CLI command are `devproxy` | Keeps the tool discoverable and consistent across install, daemon, and operator flows | — Pending |
-| Default development suffix is `.test` | `.test` is a standard local-development suffix and supports wildcard resolver behavior cleanly | — Pending |
-| Docker labels override config for the same route fields | Container-local intent should win when both sources define routing behavior | — Pending |
-| HTTP-to-HTTPS redirect is disabled by default | Avoid changing existing local workflows unless the user opts into redirect behavior | — Pending |
-| Certificates are generated during route discovery | Routes should be ready before first request instead of failing lazily at open time | — Pending |
-| Menu bar ships as a subcommand of the main binary | Keeps packaging and install flow simpler than maintaining a separate app bundle | — Pending |
+| Product name and CLI command are `devproxy` | Keeps the tool discoverable and consistent across install, daemon, and operator flows | Implemented in `v1.0` |
+| Default development suffix is `.test` | `.test` is a standard local-development suffix and supports wildcard resolver behavior cleanly | Implemented in `v1.0` |
+| Docker labels override config for the same route fields | Container-local intent should win when both sources define routing behavior | Implemented in `v1.0` |
+| HTTP-to-HTTPS redirect is disabled by default | Avoid changing existing local workflows unless the user opts into redirect behavior | Implemented in `v1.0` |
+| Certificates are generated during route discovery | Routes should be ready before first request instead of failing lazily at open time | Implemented in `v1.0` |
+| Menu bar ships as a subcommand of the main binary | Keeps packaging and install flow simpler than maintaining a separate app bundle | Implemented in `v1.0` |
 
 ## Evolution
 
@@ -78,4 +79,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-05 after initialization*
+*Last updated: 2026-05-12 after milestone `v1.0` completion*
