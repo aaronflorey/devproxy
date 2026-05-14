@@ -9,11 +9,11 @@ import (
 	"net/http"
 	"sync"
 
+	mdns "github.com/miekg/dns"
 	"github.com/mochaka/devproxy/internal/certs"
 	devproxydns "github.com/mochaka/devproxy/internal/dns"
 	"github.com/mochaka/devproxy/internal/proxy"
 	"github.com/mochaka/devproxy/internal/routing"
-	mdns "github.com/miekg/dns"
 )
 
 type ListenerHealth struct {
@@ -154,30 +154,22 @@ func (n *NetworkRuntime) Start() error {
 	httpListener, err := net.Listen("tcp", n.health.HTTP.BindAddress)
 	n.health.HTTP.Bound = err == nil
 	n.health.HTTP.LastError = errorString(err)
-	if err != nil {
-		_ = n.stopDNSServerLocked()
-		return err
+	if err == nil {
+		n.health.HTTP.BindAddress = httpListener.Addr().String()
+		n.httpListener = httpListener
+		n.httpServer = &http.Server{Handler: n.httpHandler}
+		go serveListener(n.httpServer, httpListener)
 	}
-	n.health.HTTP.BindAddress = httpListener.Addr().String()
 
 	httpsListener, err := tls.Listen("tcp", n.health.HTTPS.BindAddress, n.httpsHandler.TLSConfig())
 	n.health.HTTPS.Bound = err == nil
 	n.health.HTTPS.LastError = errorString(err)
-	if err != nil {
-		_ = httpListener.Close()
-		_ = n.stopDNSServerLocked()
-		n.health.HTTP.Bound = false
-		return err
+	if err == nil {
+		n.health.HTTPS.BindAddress = httpsListener.Addr().String()
+		n.httpsListener = httpsListener
+		n.httpsServer = &http.Server{Handler: n.httpsHandler}
+		go serveListener(n.httpsServer, httpsListener)
 	}
-	n.health.HTTPS.BindAddress = httpsListener.Addr().String()
-
-	n.httpListener = httpListener
-	n.httpsListener = httpsListener
-	n.httpServer = &http.Server{Handler: n.httpHandler}
-	n.httpsServer = &http.Server{Handler: n.httpsHandler}
-
-	go serveListener(n.httpServer, httpListener)
-	go serveListener(n.httpsServer, httpsListener)
 	return nil
 }
 
@@ -219,6 +211,9 @@ func (n *NetworkRuntime) stopDNSServerLocked() error {
 		return nil
 	}
 	err := n.dnsServer.Shutdown()
+	if err != nil && err.Error() == "dns: server not started" {
+		err = nil
+	}
 	n.dnsServer = nil
 	n.dnsPacketConn = nil
 	n.health.DNS.Bound = false

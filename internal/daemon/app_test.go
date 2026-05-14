@@ -3,33 +3,62 @@ package daemon
 import (
 	"context"
 	"errors"
+	"net"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/mochaka/devproxy/internal/adminapi"
 	"github.com/mochaka/devproxy/internal/config"
 	"github.com/mochaka/devproxy/internal/discovery"
 )
 
-func TestDaemonAppBootstrapFailsClearlyWhenDependenciesUnavailable(t *testing.T) {
-	t.Run("docker ping fails", func(t *testing.T) {
+func TestDaemonAppStartDegradesWhenDependenciesUnavailable(t *testing.T) {
+	t.Run("docker unavailable still starts admin socket", func(t *testing.T) {
 		app := NewApp(AppConfig{
-			DockerPing: func(context.Context) error { return errors.New("daemon unreachable") },
+			Config:           configFixture(),
+			AdminSocketPath:  filepath.Join(t.TempDir(), "admin.sock"),
+			DashboardAddress: "127.0.0.1:0",
+			DNSAddress:       "127.0.0.1:0",
+			HTTPAddress:      "127.0.0.1:0",
+			HTTPSAddress:     "127.0.0.1:0",
+			DockerPing:       func(context.Context) error { return errors.New("daemon unreachable") },
+			DockerScan:       func(context.Context) ([]ContainerState, error) { return nil, errors.New("docker inspect failed") },
 			EnsureMKCert: func(context.Context) error {
-				t.Fatal("expected bootstrap to stop before mkcert when docker is unavailable")
 				return nil
 			},
 			BuildNetworkRuntime: func(context.Context) error {
-				t.Fatal("expected bootstrap to stop before network runtime when docker is unavailable")
 				return nil
 			},
 		})
+		defer func() { _ = app.Close(context.Background()) }()
 
-		err := app.Start(context.Background())
-		if err == nil || !strings.Contains(err.Error(), "docker reachability") {
-			t.Fatalf("expected explicit docker reachability failure, got %v", err)
+		if err := app.Start(context.Background()); err != nil {
+			t.Fatalf("expected degraded startup, got %v", err)
+		}
+
+		client := adminapi.NewClient(app.cfg.AdminSocketPath)
+		status, err := client.Status(context.Background())
+		if err != nil {
+			t.Fatalf("status: %v", err)
+		}
+		if status.Watcher.Connected {
+			t.Fatalf("expected watcher to report disconnected when docker is unavailable")
+		}
+
+		issues, err := client.Issues(context.Background())
+		if err != nil {
+			t.Fatalf("issues: %v", err)
+		}
+		if len(issues) < 2 {
+			t.Fatalf("expected docker startup issues to be recorded, got %+v", issues)
+		}
+		messages := []string{issues[0].Message, issues[1].Message}
+		joined := strings.Join(messages, " ")
+		if !strings.Contains(joined, "docker reachability check failed") || !strings.Contains(joined, "docker inspect failed") {
+			t.Fatalf("expected docker startup failures in issues, got %+v", issues)
 		}
 	})
 
@@ -49,18 +78,75 @@ func TestDaemonAppBootstrapFailsClearlyWhenDependenciesUnavailable(t *testing.T)
 		}
 	})
 
-	t.Run("listener bind fails", func(t *testing.T) {
+	t.Run("listener bind validation failure is recorded", func(t *testing.T) {
 		app := NewApp(AppConfig{
-			DockerPing:   func(context.Context) error { return nil },
-			EnsureMKCert: func(context.Context) error { return nil },
+			Config:           configFixture(),
+			AdminSocketPath:  filepath.Join(t.TempDir(), "admin.sock"),
+			DashboardAddress: "127.0.0.1:0",
+			DNSAddress:       "127.0.0.1:0",
+			HTTPAddress:      "127.0.0.1:0",
+			HTTPSAddress:     "127.0.0.1:0",
+			DockerPing:       func(context.Context) error { return nil },
+			EnsureMKCert:     func(context.Context) error { return nil },
 			BuildNetworkRuntime: func(context.Context) error {
 				return errors.New("listen tcp 127.0.0.1:80: bind: permission denied")
 			},
 		})
+		defer func() { _ = app.Close(context.Background()) }()
 
-		err := app.Start(context.Background())
-		if err == nil || !strings.Contains(err.Error(), "listener bind") {
-			t.Fatalf("expected explicit listener bind failure, got %v", err)
+		if err := app.Start(context.Background()); err != nil {
+			t.Fatalf("expected degraded startup, got %v", err)
+		}
+
+		issues := app.stateSnapshot().Issues
+		if len(issues) == 0 || issues[len(issues)-1].Role != "network" {
+			t.Fatalf("expected network validation issue to be recorded, got %+v", issues)
+		}
+		if !strings.Contains(issues[len(issues)-1].Message, "listener bind validation failed") {
+			t.Fatalf("expected validation failure message, got %+v", issues[len(issues)-1])
+		}
+	})
+
+	t.Run("http bind failure still starts admin socket", func(t *testing.T) {
+		listener, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			t.Fatalf("reserve http address: %v", err)
+		}
+		defer func() { _ = listener.Close() }()
+
+		app := NewApp(AppConfig{
+			Config:           configFixture(),
+			AdminSocketPath:  filepath.Join(t.TempDir(), "admin.sock"),
+			DashboardAddress: "127.0.0.1:0",
+			DNSAddress:       "127.0.0.1:0",
+			HTTPAddress:      listener.Addr().String(),
+			HTTPSAddress:     "127.0.0.1:0",
+			EnsureMKCert:     func(context.Context) error { return nil },
+		})
+		defer func() { _ = app.Close(context.Background()) }()
+
+		if err := app.Start(context.Background()); err != nil {
+			t.Fatalf("expected degraded startup, got %v", err)
+		}
+
+		client := adminapi.NewClient(app.cfg.AdminSocketPath)
+		status, err := client.Status(context.Background())
+		if err != nil {
+			t.Fatalf("status: %v", err)
+		}
+		if status.HTTP.Bound {
+			t.Fatalf("expected http listener to remain unbound after startup conflict")
+		}
+		if !strings.Contains(status.HTTP.LastError, "address already in use") {
+			t.Fatalf("expected explicit http bind error, got %+v", status.HTTP)
+		}
+
+		issues, err := client.Issues(context.Background())
+		if err != nil {
+			t.Fatalf("issues: %v", err)
+		}
+		if len(issues) == 0 || issues[0].Role != "http" {
+			t.Fatalf("expected http bind issue, got %+v", issues)
 		}
 	})
 }
