@@ -12,12 +12,13 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
+	mdns "github.com/miekg/dns"
 	"github.com/mochaka/devproxy/internal/certs"
 	"github.com/mochaka/devproxy/internal/routing"
-	mdns "github.com/miekg/dns"
 )
 
 func TestNewNetworkRuntimePreparesCertificates(t *testing.T) {
@@ -168,6 +169,52 @@ func TestNetworkRuntimeStartBindsHTTPHTTPSAndDNS(t *testing.T) {
 	}
 	if defaultHealth.HTTPS.BindAddress != "127.0.0.1:443" {
 		t.Fatalf("expected default https bind address, got %q", defaultHealth.HTTPS.BindAddress)
+	}
+}
+
+func TestNetworkRuntimeStartDegradesWhenHTTPAndHTTPSPortsAreUnavailable(t *testing.T) {
+	httpBlocker, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("reserve http port: %v", err)
+	}
+	defer func() { _ = httpBlocker.Close() }()
+
+	httpsBlocker, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("reserve https port: %v", err)
+	}
+	defer func() { _ = httpsBlocker.Close() }()
+
+	runtime, err := NewNetworkRuntime(NetworkRuntimeConfig{
+		ManagedSuffix: "test",
+		Snapshot:      staticDaemonSnapshot(routing.Snapshot{Routes: map[string]routing.Route{}}),
+		Certificates:  map[string]tls.Certificate{"acme.test": mustInlineTestCertificate(t, []string{"acme.test", "*.acme.test"})},
+		DNSAddress:    freeLoopbackUDPAddress(t),
+		HTTPAddress:   httpBlocker.Addr().String(),
+		HTTPSAddress:  httpsBlocker.Addr().String(),
+	})
+	if err != nil {
+		t.Fatalf("new network runtime: %v", err)
+	}
+	defer func() {
+		if err := runtime.Close(); err != nil {
+			t.Fatalf("close runtime: %v", err)
+		}
+	}()
+
+	if err := runtime.Start(); err != nil {
+		t.Fatalf("expected degraded listener startup, got %v", err)
+	}
+
+	health := runtime.Health()
+	if !health.DNS.Bound {
+		t.Fatalf("expected dns listener to stay bound during degraded startup")
+	}
+	if health.HTTP.Bound || !strings.Contains(health.HTTP.LastError, "address already in use") {
+		t.Fatalf("expected explicit http bind failure, got %+v", health.HTTP)
+	}
+	if health.HTTPS.Bound || !strings.Contains(health.HTTPS.LastError, "address already in use") {
+		t.Fatalf("expected explicit https bind failure, got %+v", health.HTTPS)
 	}
 }
 

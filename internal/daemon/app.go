@@ -72,12 +72,14 @@ func NewApp(cfg AppConfig) *App {
 func (a *App) Start(ctx context.Context) error {
 	if ping := a.cfg.DockerPing; ping != nil {
 		if err := ping(ctx); err != nil {
-			return fmt.Errorf("docker reachability check failed: %w", err)
+			a.recordWatcherIssue("ping", fmt.Errorf("docker reachability check failed: %w", err))
 		}
 	}
 
 	if err := a.refreshFromDocker(ctx); err != nil {
-		return err
+		if a.cfg.DockerScan == nil {
+			return err
+		}
 	}
 
 	if ensure := a.cfg.EnsureMKCert; ensure != nil {
@@ -88,7 +90,7 @@ func (a *App) Start(ctx context.Context) error {
 
 	if build := a.cfg.BuildNetworkRuntime; build != nil {
 		if err := build(ctx); err != nil {
-			return fmt.Errorf("listener bind validation failed: %w", err)
+			a.recordIssue("network", "startup-validation", fmt.Sprintf("listener bind validation failed: %v", err))
 		}
 	}
 
@@ -109,6 +111,7 @@ func (a *App) Start(ctx context.Context) error {
 		return fmt.Errorf("listener bind startup failed: %w", err)
 	}
 	a.network = network
+	a.recordNetworkListenerIssues(network.Health())
 
 	server, err := adminapi.NewServer(adminapi.ServerConfig{
 		SocketPath: a.cfg.AdminSocketPath,
@@ -145,6 +148,22 @@ func (a *App) Start(ctx context.Context) error {
 		go a.watchDockerEvents(ctx)
 	}
 	return nil
+}
+
+func (a *App) recordNetworkListenerIssues(health NetworkRuntimeHealth) {
+	for _, listener := range []struct {
+		role   string
+		health ListenerHealth
+	}{
+		{role: "dns", health: health.DNS},
+		{role: "http", health: health.HTTP},
+		{role: "https", health: health.HTTPS},
+	} {
+		if listener.health.LastError == "" {
+			continue
+		}
+		a.recordIssue(listener.role, "bind", listener.health.LastError)
+	}
 }
 
 func (a *App) Run(ctx context.Context) error {
