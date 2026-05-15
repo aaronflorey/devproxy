@@ -7,28 +7,48 @@
   <link rel="stylesheet" href="/static/dashboard.css" />
 </head>
 <body>
-  <main class="shell">
-    <section class="card">
-      <h1>Current Session Logs</h1>
-      <ul>
-        {{range .Logs}}
-        <li>{{.Type}} {{.Hostname}} {{.Message}}</li>
-        {{else}}
-        <li>No log events yet.</li>
-        {{end}}
-      </ul>
-    </section>
-    <section class="card">
-      <h2>Current Session Errors</h2>
-      <ul>
-        {{range .Errors}}
-        <li>{{.Type}} {{.Message}}</li>
-        {{else}}
-        <li>No current-session errors.</li>
-        {{end}}
-      </ul>
-      <p>{{.ApprovedErrorMsg}}</p>
-    </section>
-  </main>
+  <div class="app-layout">
+    {{template "nav" .}}
+    <main class="main-content">
+      <div class="shell">
+        <section class="card">
+          <div class="card-header">
+            <h1>Current Session Logs</h1>
+          </div>
+          <ul class="log-list">
+            {{range .Logs}}
+            <li class="log-item">
+              <span class="log-type log-type-{{.Type}}">{{.Type}}</span>
+              <span class="log-message">{{.Message}}</span>
+              {{if .Hostname}}<span class="log-hostname">{{.Hostname}}</span>{{end}}
+            </li>
+            {{else}}
+            <li class="empty-state">No log events yet.</li>
+            {{end}}
+          </ul>
+        </section>
+
+        <section class="card">
+          <div class="card-header">
+            <h2>Current Session Errors &amp; Warnings</h2>
+          </div>
+          <ul class="log-list">
+            {{range .Errors}}
+            <li class="log-item">
+              <span class="log-type log-type-{{.Type}}">{{.Type}}</span>
+              <span class="log-message">{{.Message}}</span>
+              {{if .Hostname}}<span class="log-hostname">{{.Hostname}}</span>{{end}}
+            </li>
+            {{else}}
+            <li class="empty-state">No current-session errors.</li>
+            {{end}}
+          </ul>
+          {{if .ApprovedErrorMsg}}
+          <p class="warning-box" style="margin-top: 16px;">{{.ApprovedErrorMsg}}</p>
+          {{end}}
+        </section>
+      </div>
+    </main>
+  </div>
 </body>
 </html>

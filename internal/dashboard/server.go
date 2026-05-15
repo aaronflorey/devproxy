@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -66,8 +67,18 @@ func NewServer(cfg Config) *Server {
 	s := &Server{listenAddress: listen, client: cfg.Client, templates: &templateSet{root: &templateExecutor{}}, mux: http.NewServeMux()}
 	s.mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticAssets))))
 	s.mux.HandleFunc("/", s.handleDashboard(tmpl))
+	s.mux.HandleFunc("/routes", s.handleRoutesPage(tmpl))
 	s.mux.HandleFunc("/logs", s.handleLogs(tmpl))
+	s.mux.HandleFunc("/doctor", s.handleDoctorPage(tmpl))
+	s.mux.HandleFunc("/status", s.handleStatusPage(tmpl))
 	s.mux.HandleFunc("/actions/refresh", s.handleRefresh)
+
+	// JSON polling endpoints for live updates
+	s.mux.HandleFunc("/api/dashboard", s.handleAPIDashboard)
+	s.mux.HandleFunc("/api/routes", s.handleAPIRoutes)
+	s.mux.HandleFunc("/api/logs", s.handleAPILogs)
+	s.mux.HandleFunc("/api/doctor", s.handleAPIDoctor)
+	s.mux.HandleFunc("/api/status", s.handleAPIStatus)
 	return s
 }
 
@@ -83,7 +94,7 @@ func ValidateListenAddress(address string) error {
 }
 
 func (s *Server) ListenAddress() string { return s.listenAddress }
-func (s *Server) Handler() http.Handler { return s.mux }
+func (s *Server) Handler() http.Handler   { return s.mux }
 
 func (s *Server) Run(ctx context.Context) error {
 	if err := ValidateListenAddress(s.listenAddress); err != nil {
@@ -100,27 +111,60 @@ func (s *Server) Run(ctx context.Context) error {
 	return nil
 }
 
+// --- Page data structs ---
+
+type pageBase struct {
+	ActivePage  string
+	DaemonError string
+	Flash       string
+}
+
 type dashboardPageData struct {
-	Status           admin.StatusView
-	Routes           []admin.RouteView
-	RecentConflicts  []admin.LogEvent
-	RecentErrors     []admin.LogEvent
-	Flash            string
-	DaemonError      string
-	NoActiveRoutes   bool
+	pageBase
+	Status          admin.StatusView
+	Routes          []admin.RouteView
+	RecentConflicts []admin.LogEvent
+	RecentErrors    []admin.LogEvent
+	NoActiveRoutes  bool
+}
+
+type routesPageData struct {
+	pageBase
+	Routes         []admin.RouteView
+	NoActiveRoutes bool
+}
+
+type logsPageData struct {
+	pageBase
+	Logs             []admin.LogEvent
+	Errors           []admin.LogEvent
 	ApprovedErrorMsg string
 }
 
-func (s *Server) handleDashboard(tmpl interface{ ExecuteTemplate(io.Writer, string, any) error }) http.HandlerFunc {
+type doctorPageData struct {
+	pageBase
+	Doctor admin.DoctorView
+}
+
+type statusPageData struct {
+	pageBase
+	Status admin.StatusView
+}
+
+// --- Template rendering ---
+
+func (s *Server) handleDashboard(tmpl interface {
+	ExecuteTemplate(io.Writer, string, any) error
+}) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
 			http.NotFound(w, r)
 			return
 		}
-		data := dashboardPageData{ApprovedErrorMsg: errDaemonUnreachable, Flash: r.URL.Query().Get("flash")}
+		data := dashboardPageData{pageBase: pageBase{ActivePage: "dashboard", Flash: r.URL.Query().Get("flash")}}
 		status, err := s.client.Status(r.Context())
 		if err != nil {
-			data.DaemonError = "Cannot connect to daemon: " + err.Error()
+			data.DaemonError = errDaemonUnreachable
 			_ = tmpl.ExecuteTemplate(w, "dashboard.html.tmpl", data)
 			return
 		}
@@ -142,26 +186,41 @@ func (s *Server) handleDashboard(tmpl interface{ ExecuteTemplate(io.Writer, stri
 				}
 			}
 		}
-		if data.NoActiveRoutes && data.DaemonError == "" {
-			data.DaemonError = "No Docker containers with published ports found. Start a Compose project with mapped ports, then select Refresh Routes."
-		}
 		_ = tmpl.ExecuteTemplate(w, "dashboard.html.tmpl", data)
 	}
 }
 
-type logsPageData struct {
-	Logs            []admin.LogEvent
-	Errors          []admin.LogEvent
-	ApprovedErrorMsg string
+func (s *Server) handleRoutesPage(tmpl interface {
+	ExecuteTemplate(io.Writer, string, any) error
+}) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/routes" {
+			http.NotFound(w, r)
+			return
+		}
+		data := routesPageData{pageBase: pageBase{ActivePage: "routes"}}
+		routes, err := s.client.Routes(r.Context())
+		if err != nil {
+			data.DaemonError = errDaemonUnreachable
+			_ = tmpl.ExecuteTemplate(w, "routes.html.tmpl", data)
+			return
+		}
+		sort.Slice(routes, func(i, j int) bool { return routes[i].Hostname < routes[j].Hostname })
+		data.Routes = routes
+		data.NoActiveRoutes = len(routes) == 0
+		_ = tmpl.ExecuteTemplate(w, "routes.html.tmpl", data)
+	}
 }
 
-func (s *Server) handleLogs(tmpl interface{ ExecuteTemplate(io.Writer, string, any) error }) http.HandlerFunc {
+func (s *Server) handleLogs(tmpl interface {
+	ExecuteTemplate(io.Writer, string, any) error
+}) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/logs" {
 			http.NotFound(w, r)
 			return
 		}
-		data := logsPageData{ApprovedErrorMsg: errDaemonUnreachable}
+		data := logsPageData{pageBase: pageBase{ActivePage: "logs"}, ApprovedErrorMsg: errDaemonUnreachable}
 		logs, err := s.client.Logs(r.Context())
 		if err == nil {
 			data.Logs = logs
@@ -176,6 +235,46 @@ func (s *Server) handleLogs(tmpl interface{ ExecuteTemplate(io.Writer, string, a
 	}
 }
 
+func (s *Server) handleDoctorPage(tmpl interface {
+	ExecuteTemplate(io.Writer, string, any) error
+}) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/doctor" {
+			http.NotFound(w, r)
+			return
+		}
+		data := doctorPageData{pageBase: pageBase{ActivePage: "doctor"}}
+		doctor, err := s.client.Doctor(r.Context())
+		if err != nil {
+			data.DaemonError = errDaemonUnreachable
+			_ = tmpl.ExecuteTemplate(w, "doctor.html.tmpl", data)
+			return
+		}
+		data.Doctor = doctor
+		_ = tmpl.ExecuteTemplate(w, "doctor.html.tmpl", data)
+	}
+}
+
+func (s *Server) handleStatusPage(tmpl interface {
+	ExecuteTemplate(io.Writer, string, any) error
+}) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/status" {
+			http.NotFound(w, r)
+			return
+		}
+		data := statusPageData{pageBase: pageBase{ActivePage: "status"}}
+		status, err := s.client.Status(r.Context())
+		if err != nil {
+			data.DaemonError = errDaemonUnreachable
+			_ = tmpl.ExecuteTemplate(w, "status.html.tmpl", data)
+			return
+		}
+		data.Status = status
+		_ = tmpl.ExecuteTemplate(w, "status.html.tmpl", data)
+	}
+}
+
 func (s *Server) handleRefresh(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
@@ -186,4 +285,138 @@ func (s *Server) handleRefresh(w http.ResponseWriter, r *http.Request) {
 		flash = "Refresh failed"
 	}
 	http.Redirect(w, r, "/?flash="+url.QueryEscape(flash), http.StatusSeeOther)
+}
+
+// --- JSON polling handlers ---
+
+type apiResponse struct {
+	DaemonError string `json:"daemon_error,omitempty"`
+}
+
+func writeJSON(w http.ResponseWriter, code int, payload any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	_ = json.NewEncoder(w).Encode(payload)
+}
+
+func (s *Server) handleAPIDashboard(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeJSON(w, http.StatusMethodNotAllowed, apiResponse{DaemonError: "method not allowed"})
+		return
+	}
+	data := struct {
+		apiResponse
+		Status    admin.StatusView `json:"status,omitempty"`
+		Routes    []admin.RouteView `json:"routes,omitempty"`
+		Conflicts []admin.LogEvent  `json:"conflicts,omitempty"`
+		Errors    []admin.LogEvent  `json:"errors,omitempty"`
+	}{}
+	status, err := s.client.Status(r.Context())
+	if err != nil {
+		data.DaemonError = errDaemonUnreachable
+		writeJSON(w, http.StatusOK, data)
+		return
+	}
+	data.Status = status
+	routes, routesErr := s.client.Routes(r.Context())
+	if routesErr == nil {
+		sort.Slice(routes, func(i, j int) bool { return routes[i].Hostname < routes[j].Hostname })
+		data.Routes = routes
+	}
+	logs, logsErr := s.client.Logs(r.Context())
+	if logsErr == nil {
+		for _, entry := range logs {
+			switch strings.ToLower(entry.Type) {
+			case "conflict":
+				data.Conflicts = append(data.Conflicts, entry)
+			case "error", "warning":
+				data.Errors = append(data.Errors, entry)
+			}
+		}
+	}
+	writeJSON(w, http.StatusOK, data)
+}
+
+func (s *Server) handleAPIRoutes(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeJSON(w, http.StatusMethodNotAllowed, apiResponse{DaemonError: "method not allowed"})
+		return
+	}
+	data := struct {
+		apiResponse
+		Routes []admin.RouteView `json:"routes,omitempty"`
+	}{}
+	routes, err := s.client.Routes(r.Context())
+	if err != nil {
+		data.DaemonError = errDaemonUnreachable
+		writeJSON(w, http.StatusOK, data)
+		return
+	}
+	sort.Slice(routes, func(i, j int) bool { return routes[i].Hostname < routes[j].Hostname })
+	data.Routes = routes
+	writeJSON(w, http.StatusOK, data)
+}
+
+func (s *Server) handleAPILogs(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeJSON(w, http.StatusMethodNotAllowed, apiResponse{DaemonError: "method not allowed"})
+		return
+	}
+	data := struct {
+		apiResponse
+		Logs   []admin.LogEvent `json:"logs,omitempty"`
+		Errors []admin.LogEvent `json:"errors,omitempty"`
+	}{}
+	logs, err := s.client.Logs(r.Context())
+	if err != nil {
+		data.DaemonError = errDaemonUnreachable
+		writeJSON(w, http.StatusOK, data)
+		return
+	}
+	data.Logs = logs
+	for _, entry := range logs {
+		typ := strings.ToLower(entry.Type)
+		if typ == "error" || typ == "warning" {
+			data.Errors = append(data.Errors, entry)
+		}
+	}
+	writeJSON(w, http.StatusOK, data)
+}
+
+func (s *Server) handleAPIDoctor(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeJSON(w, http.StatusMethodNotAllowed, apiResponse{DaemonError: "method not allowed"})
+		return
+	}
+	data := struct {
+		apiResponse
+		Doctor admin.DoctorView `json:"doctor,omitempty"`
+	}{}
+	doctor, err := s.client.Doctor(r.Context())
+	if err != nil {
+		data.DaemonError = errDaemonUnreachable
+		writeJSON(w, http.StatusOK, data)
+		return
+	}
+	data.Doctor = doctor
+	writeJSON(w, http.StatusOK, data)
+}
+
+func (s *Server) handleAPIStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeJSON(w, http.StatusMethodNotAllowed, apiResponse{DaemonError: "method not allowed"})
+		return
+	}
+	data := struct {
+		apiResponse
+		Status admin.StatusView `json:"status,omitempty"`
+	}{}
+	status, err := s.client.Status(r.Context())
+	if err != nil {
+		data.DaemonError = errDaemonUnreachable
+		writeJSON(w, http.StatusOK, data)
+		return
+	}
+	data.Status = status
+	writeJSON(w, http.StatusOK, data)
 }
