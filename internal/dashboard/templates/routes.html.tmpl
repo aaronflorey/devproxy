@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DevProxy Routes</title>
+  <link rel="stylesheet" href="/static/dashboard.css" />
+</head>
+<body>
+  <div class="app-layout">
+    {{template "nav" .}}
+    <main class="main-content">
+      <div class="shell" id="routes-page">
+        <section class="card">
+          <div class="card-header">
+            <h1>Active Routes</h1>
+            <span class="polling-indicator" id="poll-indicator">
+              <span class="pulse"></span>
+              <span id="poll-text">Live</span>
+            </span>
+          </div>
+          {{if .DaemonError}}
+          <p class="error" id="daemon-error">{{.DaemonError}}</p>
+          {{end}}
+
+          <div id="routes-container">
+            {{if .NoActiveRoutes}}
+            <div class="empty-state">
+              <h3>No Active Routes</h3>
+              <p>DevProxy did not find routable containers. Start your Compose project, then select <strong>Refresh Routes</strong>.</p>
+            </div>
+            {{else}}
+            <ul class="route-list" id="routes-list">
+              {{range .Routes}}
+              <li class="route-item">
+                <div>
+                  <div class="hostname"><a href="{{.OpenURL}}">{{.Hostname}}</a></div>
+                  <div class="upstream">{{.UpstreamScheme}}://{{.UpstreamHost}}:{{.UpstreamPort}}</div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  {{if .Conflict}}<span class="badge badge-warning">Conflict</span>{{end}}
+                  {{if .HTTPSReady}}<span class="badge badge-success">HTTPS</span>{{else}}<span class="badge badge-info">HTTP</span>{{end}}
+                  {{if .FallbackReason}}<span class="fallback">{{.FallbackReason}}</span>{{end}}
+                </div>
+              </li>
+              {{end}}
+            </ul>
+            {{end}}
+          </div>
+        </section>
+      </div>
+
+      <script>
+      (function() {
+        const pollInterval = 2000;
+
+        function escapeHtml(str) {
+          if (str == null) return '';
+          return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+        }
+
+        function buildRouteItem(route) {
+          let html = '<li class="route-item">' +
+            '<div><div class="hostname"><a href="' + (route.OpenURL || '#') + '">' + escapeHtml(route.Hostname) + '</a></div>' +
+            '<div class="upstream">' + escapeHtml(route.UpstreamScheme) + '://' + escapeHtml(route.UpstreamHost) + ':' + route.UpstreamPort + '</div></div>' +
+            '<div style="display: flex; align-items: center; gap: 8px;">';
+          if (route.Conflict) {
+            html += '<span class="badge badge-warning">Conflict</span>';
+          }
+          if (route.HTTPSReady) {
+            html += '<span class="badge badge-success">HTTPS</span>';
+          } else {
+            html += '<span class="badge badge-info">HTTP</span>';
+          }
+          if (route.FallbackReason) {
+            html += '<span class="fallback">' + escapeHtml(route.FallbackReason) + '</span>';
+          }
+          html += '</div></li>';
+          return html;
+        }
+
+        function setOnline(online) {
+          const indicator = document.getElementById('poll-indicator');
+          const text = document.getElementById('poll-text');
+          if (indicator) indicator.classList.toggle('offline', !online);
+          if (text) text.textContent = online ? 'Live' : 'Offline';
+        }
+
+        async function poll() {
+          try {
+            const res = await fetch('/api/routes', { method: 'GET', headers: { 'Accept': 'application/json' } });
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            const data = await res.json();
+            setOnline(true);
+
+            if (data.daemon_error) {
+              let errEl = document.getElementById('daemon-error');
+              if (!errEl) {
+                errEl = document.createElement('p');
+                errEl.className = 'error';
+                errEl.id = 'daemon-error';
+                const container = document.getElementById('routes-container');
+                if (container) container.parentNode.insertBefore(errEl, container);
+              }
+              errEl.textContent = data.daemon_error;
+            } else {
+              const errEl = document.getElementById('daemon-error');
+              if (errEl) errEl.remove();
+            }
+
+            const routesContainer = document.getElementById('routes-container');
+            if (routesContainer && data.routes) {
+              if (data.routes.length === 0) {
+                routesContainer.innerHTML = '<div class="empty-state"><h3>No Active Routes</h3><p>DevProxy did not find routable containers. Start your Compose project, then select <strong>Refresh Routes</strong>.</p></div>';
+              } else {
+                routesContainer.innerHTML = '<ul class="route-list" id="routes-list">' + data.routes.map(buildRouteItem).join('') + '</ul>';
+              }
+            }
+          } catch (e) {
+            setOnline(false);
+            console.error('Routes poll failed:', e);
+          }
+        }
+
+        setInterval(poll, pollInterval);
+        setTimeout(poll, 500);
+      })();
+      </script>
+    </main>
+  </div>
+</body>
+</html>

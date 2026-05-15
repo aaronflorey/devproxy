@@ -7,55 +7,254 @@
   <link rel="stylesheet" href="/static/dashboard.css" />
 </head>
 <body>
-  <main class="shell">
-    <section class="card">
-      <h1>DevProxy Dashboard</h1>
-      <p>Snapshot: {{.Status.SnapshotVersion}}</p>
-      <p>Active Routes: {{.Status.ActiveRoutes}} • Conflicts: {{.Status.Conflicts}} • Warnings: {{.Status.Warnings}}</p>
-      <form method="post" action="/actions/refresh">
-        <button type="submit">Refresh Routes</button>
-      </form>
-      {{if .Flash}}<p class="flash">{{.Flash}}</p>{{end}}
-      {{if .DaemonError}}<p class="error">{{.DaemonError}}</p>{{end}}
-    </section>
+  <div class="app-layout">
+    {{template "nav" .}}
+    <main class="main-content">
+      <div class="shell" id="dashboard">
+        <section class="card">
+          <div class="card-header">
+            <h1>Dashboard</h1>
+            <span class="polling-indicator" id="poll-indicator">
+              <span class="pulse"></span>
+              <span id="poll-text">Live</span>
+            </span>
+          </div>
+          {{if .DaemonError}}
+          <p class="error" id="daemon-error">{{.DaemonError}}</p>
+          {{end}}
+          {{if .Flash}}
+          <p class="flash" id="flash-msg">{{.Flash}}</p>
+          {{end}}
 
-    <section class="card">
-      <h2>Active Routes</h2>
-      <p class="sr-only">No Active Routes</p>
-      {{if .NoActiveRoutes}}
-      <h3>No Active Routes</h3>
-      <p>DevProxy did not find routable containers. Start your Compose project, then select <strong>Refresh Routes</strong>.</p>
-      {{else}}
-      <ul>
-        {{range .Routes}}
-        <li><a href="{{.OpenURL}}">{{.Hostname}}</a> → {{.UpstreamScheme}}://{{.UpstreamHost}}:{{.UpstreamPort}}{{if .FallbackReason}} ({{.FallbackReason}}){{end}}</li>
-        {{end}}
-      </ul>
-      {{end}}
-    </section>
+          <div class="status-grid" id="status-grid">
+            <div class="status-item">
+              <div class="label">Snapshot</div>
+              <div class="value" id="status-snapshot">{{.Status.SnapshotVersion}}</div>
+            </div>
+            <div class="status-item">
+              <div class="label">Active Routes</div>
+              <div class="value" id="status-routes">{{.Status.ActiveRoutes}}</div>
+            </div>
+            <div class="status-item">
+              <div class="label">Conflicts</div>
+              <div class="value" id="status-conflicts">{{.Status.Conflicts}}</div>
+            </div>
+            <div class="status-item">
+              <div class="label">Warnings</div>
+              <div class="value" id="status-warnings">{{.Status.Warnings}}</div>
+            </div>
+            <div class="status-item">
+              <div class="label">Last Sync</div>
+              <div class="value" id="status-sync">{{if .Status.LastSync.IsZero}}—{{else}}{{.Status.LastSync.Format "15:04:05"}}{{end}}</div>
+            </div>
+            <div class="status-item">
+              <div class="label">State</div>
+              <div class="value" id="status-state">
+                {{if .Status.Paused}}<span class="badge badge-warning">Paused</span>{{else}}<span class="badge badge-success">Active</span>{{end}}
+              </div>
+            </div>
+          </div>
 
-    <section class="card">
-      <h2>Recent Conflicts</h2>
-      <ul>
-        {{range .RecentConflicts}}
-        <li>{{.Hostname}} — {{.Message}}</li>
-        {{else}}
-        <li>No recent conflicts</li>
-        {{end}}
-      </ul>
-    </section>
+          <div style="margin-top: 20px; display: flex; gap: 12px; align-items: center;">
+            <form method="post" action="/actions/refresh" style="margin: 0;">
+              <button type="submit">↻ Refresh Routes</button>
+            </form>
+            <span id="last-poll" style="font-size: 12px; color: #64748b;"></span>
+          </div>
+        </section>
 
-    <section class="card">
-      <h2>Recent Current-Session Errors</h2>
-      <p class="sr-only">DevProxy can’t reach the daemon right now. Ensure the daemon is running, then select Run Doctor for repair guidance.</p>
-      <ul>
-        {{range .RecentErrors}}
-        <li>{{.Type}} — {{.Message}}</li>
-        {{else}}
-        <li>No current-session errors</li>
-        {{end}}
-      </ul>
-    </section>
-  </main>
+        <section class="card">
+          <h2>Active Routes</h2>
+          <div id="routes-container">
+            {{if .NoActiveRoutes}}
+            <div class="empty-state">
+              <h3>No Active Routes</h3>
+              <p>DevProxy did not find routable containers. Start your Compose project, then select <strong>Refresh Routes</strong>.</p>
+            </div>
+            {{else}}
+            <ul class="route-list" id="routes-list">
+              {{range .Routes}}
+              <li class="route-item">
+                <div>
+                  <div class="hostname"><a href="{{.OpenURL}}">{{.Hostname}}</a></div>
+                  <div class="upstream">{{.UpstreamScheme}}://{{.UpstreamHost}}:{{.UpstreamPort}}</div>
+                </div>
+                {{if .FallbackReason}}
+                <span class="fallback">{{.FallbackReason}}</span>
+                {{end}}
+              </li>
+              {{end}}
+            </ul>
+            {{end}}
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>Recent Conflicts</h2>
+          <ul class="log-list" id="conflicts-list">
+            {{range .RecentConflicts}}
+            <li class="log-item">
+              <span class="log-type log-type-conflict">Conflict</span>
+              <span class="log-message">{{.Message}}</span>
+              {{if .Hostname}}<span class="log-hostname">{{.Hostname}}</span>{{end}}
+            </li>
+            {{else}}
+            <li class="empty-state">No recent conflicts</li>
+            {{end}}
+          </ul>
+        </section>
+
+        <section class="card">
+          <h2>Recent Errors &amp; Warnings</h2>
+          <ul class="log-list" id="errors-list">
+            {{range .RecentErrors}}
+            <li class="log-item">
+              <span class="log-type log-type-{{.Type}}">{{.Type}}</span>
+              <span class="log-message">{{.Message}}</span>
+              {{if .Hostname}}<span class="log-hostname">{{.Hostname}}</span>{{end}}
+            </li>
+            {{else}}
+            <li class="empty-state">No current-session errors</li>
+            {{end}}
+          </ul>
+        </section>
+      </div>
+
+      <script>
+      (function() {
+        const pollInterval = 2000;
+        let pollTimer = null;
+
+        function formatTime(dateStr) {
+          if (!dateStr) return '—';
+          const d = new Date(dateStr);
+          if (isNaN(d)) return dateStr;
+          return d.toLocaleTimeString();
+        }
+
+        function updateText(id, text) {
+          const el = document.getElementById(id);
+          if (el) el.textContent = text;
+        }
+
+        function updateHTML(id, html) {
+          const el = document.getElementById(id);
+          if (el) el.innerHTML = html;
+        }
+
+        function buildRouteItem(route) {
+          let html = '<li class="route-item">' +
+            '<div><div class="hostname"><a href="' + (route.OpenURL || '#') + '">' + escapeHtml(route.Hostname) + '</a></div>' +
+            '<div class="upstream">' + escapeHtml(route.UpstreamScheme) + '://' + escapeHtml(route.UpstreamHost) + ':' + route.UpstreamPort + '</div></div>';
+          if (route.FallbackReason) {
+            html += '<span class="fallback">' + escapeHtml(route.FallbackReason) + '</span>';
+          }
+          html += '</li>';
+          return html;
+        }
+
+        function buildLogItem(entry) {
+          const typeClass = 'log-type-' + (entry.Type || 'info').toLowerCase();
+          return '<li class="log-item">' +
+            '<span class="log-type ' + typeClass + '">' + escapeHtml(entry.Type || 'info') + '</span>' +
+            '<span class="log-message">' + escapeHtml(entry.Message || '') + '</span>' +
+            (entry.Hostname ? '<span class="log-hostname">' + escapeHtml(entry.Hostname) + '</span>' : '') +
+            '</li>';
+        }
+
+        function escapeHtml(str) {
+          if (str == null) return '';
+          return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+        }
+
+        function setOnline(online) {
+          const indicator = document.getElementById('poll-indicator');
+          const text = document.getElementById('poll-text');
+          if (indicator) {
+            indicator.classList.toggle('offline', !online);
+          }
+          if (text) {
+            text.textContent = online ? 'Live' : 'Offline';
+          }
+        }
+
+        async function poll() {
+          try {
+            const res = await fetch('/api/dashboard', { method: 'GET', headers: { 'Accept': 'application/json' } });
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            const data = await res.json();
+
+            setOnline(true);
+            document.getElementById('last-poll').textContent = 'Updated ' + new Date().toLocaleTimeString();
+
+            if (data.daemon_error) {
+              let errEl = document.getElementById('daemon-error');
+              if (!errEl) {
+                errEl = document.createElement('p');
+                errEl.className = 'error';
+                errEl.id = 'daemon-error';
+                const grid = document.getElementById('status-grid');
+                if (grid) grid.parentNode.insertBefore(errEl, grid);
+              }
+              errEl.textContent = data.daemon_error;
+            } else {
+              const errEl = document.getElementById('daemon-error');
+              if (errEl) errEl.remove();
+            }
+
+            if (data.status) {
+              updateText('status-snapshot', data.status.SnapshotVersion || '—');
+              updateText('status-routes', String(data.status.ActiveRoutes || 0));
+              updateText('status-conflicts', String(data.status.Conflicts || 0));
+              updateText('status-warnings', String(data.status.Warnings || 0));
+              updateText('status-sync', data.status.LastSync ? formatTime(data.status.LastSync) : '—');
+              const stateBadge = data.status.Paused
+                ? '<span class="badge badge-warning">Paused</span>'
+                : '<span class="badge badge-success">Active</span>';
+              updateHTML('status-state', stateBadge);
+            }
+
+            const routesContainer = document.getElementById('routes-container');
+            if (routesContainer && data.routes) {
+              if (data.routes.length === 0) {
+                routesContainer.innerHTML = '<div class="empty-state"><h3>No Active Routes</h3><p>DevProxy did not find routable containers. Start your Compose project, then select <strong>Refresh Routes</strong>.</p></div>';
+              } else {
+                routesContainer.innerHTML = '<ul class="route-list" id="routes-list">' + data.routes.map(buildRouteItem).join('') + '</ul>';
+              }
+            }
+
+            const conflictsList = document.getElementById('conflicts-list');
+            if (conflictsList && data.conflicts) {
+              if (data.conflicts.length === 0) {
+                conflictsList.innerHTML = '<li class="empty-state">No recent conflicts</li>';
+              } else {
+                conflictsList.innerHTML = data.conflicts.map(buildLogItem).join('');
+              }
+            }
+
+            const errorsList = document.getElementById('errors-list');
+            if (errorsList && data.errors) {
+              if (data.errors.length === 0) {
+                errorsList.innerHTML = '<li class="empty-state">No current-session errors</li>';
+              } else {
+                errorsList.innerHTML = data.errors.map(buildLogItem).join('');
+              }
+            }
+          } catch (e) {
+            setOnline(false);
+            console.error('Dashboard poll failed:', e);
+          }
+        }
+
+        pollTimer = setInterval(poll, pollInterval);
+        setTimeout(poll, 500);
+      })();
+      </script>
+    </main>
+  </div>
 </body>
 </html>

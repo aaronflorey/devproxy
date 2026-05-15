@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DevProxy System Status</title>
+  <link rel="stylesheet" href="/static/dashboard.css" />
+</head>
+<body>
+  <div class="app-layout">
+    {{template "nav" .}}
+    <main class="main-content">
+      <div class="shell" id="status-page">
+        <section class="card">
+          <div class="card-header">
+            <h1>System Status</h1>
+            <span class="polling-indicator" id="poll-indicator">
+              <span class="pulse"></span>
+              <span id="poll-text">Live</span>
+            </span>
+          </div>
+          {{if .DaemonError}}
+          <p class="error" id="daemon-error">{{.DaemonError}}</p>
+          {{end}}
+
+          <div class="status-grid" id="status-grid">
+            <div class="status-item">
+              <div class="label">Snapshot Version</div>
+              <div class="value" id="sys-snapshot">{{.Status.SnapshotVersion}}</div>
+            </div>
+            <div class="status-item">
+              <div class="label">Active Routes</div>
+              <div class="value" id="sys-routes">{{.Status.ActiveRoutes}}</div>
+            </div>
+            <div class="status-item">
+              <div class="label">Last Sync</div>
+              <div class="value" id="sys-sync">{{if .Status.LastSync.IsZero}}—{{else}}{{.Status.LastSync.Format "2006-01-02 15:04:05"}}{{end}}</div>
+            </div>
+            <div class="status-item">
+              <div class="label">Paused</div>
+              <div class="value" id="sys-paused">{{if .Status.Paused}}Yes{{else}}No{{end}}</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>Network Listeners</h2>
+          <div class="status-grid" id="listeners-grid">
+            <div class="status-item">
+              <div class="label">DNS</div>
+              <div class="value" id="sys-dns">
+                {{if .Status.DNS.Healthy}}
+                <span class="badge badge-success">Healthy</span>
+                {{else}}
+                <span class="badge badge-error">Unhealthy</span>
+                {{end}}
+                <div style="font-size: 12px; color: #94a3b8; margin-top: 4px;">{{.Status.DNS.ManagedSuffix}}</div>
+              </div>
+            </div>
+            <div class="status-item">
+              <div class="label">HTTP</div>
+              <div class="value" id="sys-http">
+                {{if .Status.HTTP.Bound}}
+                <span class="badge badge-success">Bound</span>
+                {{else}}
+                <span class="badge badge-error">Not Bound</span>
+                {{end}}
+                <div style="font-size: 12px; color: #94a3b8; margin-top: 4px;">{{.Status.HTTP.BindAddress}}</div>
+              </div>
+            </div>
+            <div class="status-item">
+              <div class="label">HTTPS</div>
+              <div class="value" id="sys-https">
+                {{if .Status.HTTPS.Bound}}
+                <span class="badge badge-success">Bound</span>
+                {{else}}
+                <span class="badge badge-error">Not Bound</span>
+                {{end}}
+                <div style="font-size: 12px; color: #94a3b8; margin-top: 4px;">{{.Status.HTTPS.BindAddress}}</div>
+              </div>
+            </div>
+            <div class="status-item">
+              <div class="label">Certificate</div>
+              <div class="value" id="sys-cert">
+                {{if .Status.CertificateReady}}
+                <span class="badge badge-success">Ready</span>
+                {{else}}
+                <span class="badge badge-warning">Not Ready</span>
+                {{end}}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>Watcher Health</h2>
+          <div class="status-grid" id="watcher-grid">
+            <div class="status-item">
+              <div class="label">Connected</div>
+              <div class="value" id="sys-watcher-connected">
+                {{if .Status.Watcher.Connected}}
+                <span class="badge badge-success">Connected</span>
+                {{else}}
+                <span class="badge badge-error">Disconnected</span>
+                {{end}}
+              </div>
+            </div>
+            <div class="status-item">
+              <div class="label">Last Disconnect</div>
+              <div class="value" id="sys-watcher-disconnect">
+                {{if .Status.Watcher.LastDisconnect.IsZero}}—{{else}}{{.Status.Watcher.LastDisconnect.Format "2006-01-02 15:04:05"}}{{end}}
+              </div>
+            </div>
+            <div class="status-item">
+              <div class="label">Last Reconnect</div>
+              <div class="value" id="sys-watcher-reconnect">
+                {{if .Status.Watcher.LastReconnectSync.IsZero}}—{{else}}{{.Status.Watcher.LastReconnectSync.Format "2006-01-02 15:04:05"}}{{end}}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {{if .Status.StartupRoles}}
+        <section class="card">
+          <h2>Startup Roles</h2>
+          <ul class="route-list" id="startup-roles">
+            {{range .Status.StartupRoles}}
+            <li class="route-item">
+              <div>
+                <div class="hostname">{{.Role}}</div>
+                <div class="upstream">{{.Label}} — {{.StatusMessage}}</div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                {{if .Installed}}<span class="badge badge-success">Installed</span>{{else}}<span class="badge badge-info">Not Installed</span>{{end}}
+                {{if .Running}}<span class="badge badge-success">Running</span>{{else}}<span class="badge badge-warning">Stopped</span>{{end}}
+              </div>
+            </li>
+            {{end}}
+          </ul>
+        </section>
+        {{end}}
+      </div>
+
+      <script>
+      (function() {
+        const pollInterval = 3000;
+
+        function setOnline(online) {
+          const indicator = document.getElementById('poll-indicator');
+          const text = document.getElementById('poll-text');
+          if (indicator) indicator.classList.toggle('offline', !online);
+          if (text) text.textContent = online ? 'Live' : 'Offline';
+        }
+
+        function escapeHtml(str) {
+          if (str == null) return '';
+          return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+        }
+
+        function formatTime(ts) {
+          if (!ts) return '—';
+          const d = new Date(ts);
+          if (isNaN(d)) return '—';
+          return d.toLocaleString();
+        }
+
+        function badge(label, good) {
+          return good
+            ? '<span class="badge badge-success">' + escapeHtml(label) + '</span>'
+            : '<span class="badge badge-error">' + escapeHtml(label) + '</span>';
+        }
+
+        async function poll() {
+          try {
+            const res = await fetch('/api/status', { method: 'GET', headers: { 'Accept': 'application/json' } });
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            const data = await res.json();
+            setOnline(true);
+
+            if (data.daemon_error) {
+              let errEl = document.getElementById('daemon-error');
+              if (!errEl) {
+                errEl = document.createElement('p');
+                errEl.className = 'error';
+                errEl.id = 'daemon-error';
+                const grid = document.getElementById('status-grid');
+                if (grid) grid.parentNode.insertBefore(errEl, grid);
+              }
+              errEl.textContent = data.daemon_error;
+            } else {
+              const errEl = document.getElementById('daemon-error');
+              if (errEl) errEl.remove();
+            }
+
+            if (data.status) {
+              const s = data.status;
+              const snapshotEl = document.getElementById('sys-snapshot');
+              const routesEl = document.getElementById('sys-routes');
+              const syncEl = document.getElementById('sys-sync');
+              const pausedEl = document.getElementById('sys-paused');
+
+              if (snapshotEl) snapshotEl.textContent = s.SnapshotVersion || '—';
+              if (routesEl) routesEl.textContent = String(s.ActiveRoutes || 0);
+              if (syncEl) syncEl.textContent = s.LastSync ? formatTime(s.LastSync) : '—';
+              if (pausedEl) pausedEl.textContent = s.Paused ? 'Yes' : 'No';
+
+              const dnsEl = document.getElementById('sys-dns');
+              const httpEl = document.getElementById('sys-http');
+              const httpsEl = document.getElementById('sys-https');
+              const certEl = document.getElementById('sys-cert');
+
+              if (dnsEl) {
+                const suffix = s.DNS && s.DNS.ManagedSuffix ? '<div style="font-size: 12px; color: #94a3b8; margin-top: 4px;">' + escapeHtml(s.DNS.ManagedSuffix) + '</div>' : '';
+                dnsEl.innerHTML = badge('Healthy', s.DNS && s.DNS.Healthy) + suffix;
+              }
+              if (httpEl) {
+                const addr = s.HTTP && s.HTTP.BindAddress ? '<div style="font-size: 12px; color: #94a3b8; margin-top: 4px;">' + escapeHtml(s.HTTP.BindAddress) + '</div>' : '';
+                httpEl.innerHTML = badge('Bound', s.HTTP && s.HTTP.Bound) + addr;
+              }
+              if (httpsEl) {
+                const addr = s.HTTPS && s.HTTPS.BindAddress ? '<div style="font-size: 12px; color: #94a3b8; margin-top: 4px;">' + escapeHtml(s.HTTPS.BindAddress) + '</div>' : '';
+                httpsEl.innerHTML = badge('Bound', s.HTTPS && s.HTTPS.Bound) + addr;
+              }
+              if (certEl) {
+                certEl.innerHTML = s.CertificateReady
+                  ? '<span class="badge badge-success">Ready</span>'
+                  : '<span class="badge badge-warning">Not Ready</span>';
+              }
+
+              const wcEl = document.getElementById('sys-watcher-connected');
+              const wdEl = document.getElementById('sys-watcher-disconnect');
+              const wrEl = document.getElementById('sys-watcher-reconnect');
+              if (wcEl) wcEl.innerHTML = badge('Connected', s.Watcher && s.Watcher.Connected);
+              if (wdEl) wdEl.textContent = s.Watcher && s.Watcher.LastDisconnect ? formatTime(s.Watcher.LastDisconnect) : '—';
+              if (wrEl) wrEl.textContent = s.Watcher && s.Watcher.LastReconnectSync ? formatTime(s.Watcher.LastReconnectSync) : '—';
+            }
+          } catch (e) {
+            setOnline(false);
+            console.error('Status poll failed:', e);
+          }
+        }
+
+        setInterval(poll, pollInterval);
+        setTimeout(poll, 500);
+      })();
+      </script>
+    </main>
+  </div>
+</body>
+</html>

@@ -1,0 +1,15 @@
+{{define "nav"}}
+<aside class="sidebar">
+  <div class="sidebar-brand">
+    <h1>DevProxy</h1>
+    <div class="version">Dashboard</div>
+  </div>
+  <ul class="sidebar-nav">
+    <li><a href="/" class="{{if eq .ActivePage "dashboard"}}active{{end}}"><span class="icon">🏠</span> Dashboard</a></li>
+    <li><a href="/routes" class="{{if eq .ActivePage "routes"}}active{{end}}"><span class="icon">🌐</span> Routes</a></li>
+    <li><a href="/logs" class="{{if eq .ActivePage "logs"}}active{{end}}"><span class="icon">📋</span> Logs</a></li>
+    <li><a href="/doctor" class="{{if eq .ActivePage "doctor"}}active{{end}}"><span class="icon">🔍</span> Doctor</a></li>
+    <li><a href="/status" class="{{if eq .ActivePage "status"}}active{{end}}"><span class="icon">⚙️</span> System Status</a></li>
+  </ul>
+</aside>
+{{end}}
