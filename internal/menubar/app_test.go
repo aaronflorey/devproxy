@@ -157,7 +157,9 @@ type stubAdminClient struct {
 	startupErr    error
 }
 
-func (s *stubAdminClient) Status(context.Context) (admin.StatusView, error) { return admin.StatusView{}, nil }
+func (s *stubAdminClient) Status(context.Context) (admin.StatusView, error) {
+	return admin.StatusView{}, nil
+}
 func (s *stubAdminClient) Routes(context.Context) ([]admin.RouteView, error) { return nil, nil }
 func (s *stubAdminClient) Refresh(_ context.Context, reason string) (adminapi.RefreshResponse, error) {
 	s.refreshReason = reason
@@ -187,7 +189,9 @@ func (s *stubAdminClient) SetStartupEnabled(_ context.Context, req adminapi.Star
 	}
 	return s.startupResp, nil
 }
-func (s *stubAdminClient) Doctor(context.Context) (admin.DoctorView, error) { return admin.DoctorView{}, nil }
+func (s *stubAdminClient) Doctor(context.Context) (admin.DoctorView, error) {
+	return admin.DoctorView{}, nil
+}
 
 type stubOpener struct{ opened []string }
 

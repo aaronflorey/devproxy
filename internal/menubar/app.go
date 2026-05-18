@@ -11,9 +11,9 @@ import (
 )
 
 const (
-	dashboardURL      = "http://127.0.0.1:45831/"
-	logsURL           = "http://127.0.0.1:45831/logs"
-	offlineCopy       = "DevProxy can’t reach the daemon right now. Ensure the daemon is running, then select Run Doctor for repair guidance."
+	dashboardURL       = "http://127.0.0.1:45831/"
+	logsURL            = "http://127.0.0.1:45831/logs"
+	offlineCopy        = "DevProxy can’t reach the daemon right now. Ensure the daemon is running, then select Run Doctor for repair guidance."
 	startupRoleMenubar = "menubar"
 )
 
@@ -44,13 +44,13 @@ type repairActions struct {
 }
 
 type menuState struct {
-	HealthLine      string
-	PauseLine       string
+	HealthLine       string
+	PauseLine        string
 	ActiveRoutesLine string
-	StartupLine     string
-	ErrorLine       string
-	RouteItems      []routeMenuItem
-	RepairActions   repairActions
+	StartupLine      string
+	ErrorLine        string
+	RouteItems       []routeMenuItem
+	RepairActions    repairActions
 }
 
 func buildMenuState(status admin.StatusView, routes []admin.RouteView, startup []adminapi.StartupRoleStatus) menuState {

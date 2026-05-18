@@ -94,7 +94,7 @@ func ValidateListenAddress(address string) error {
 }
 
 func (s *Server) ListenAddress() string { return s.listenAddress }
-func (s *Server) Handler() http.Handler   { return s.mux }
+func (s *Server) Handler() http.Handler { return s.mux }
 
 func (s *Server) Run(ctx context.Context) error {
 	if err := ValidateListenAddress(s.listenAddress); err != nil {
@@ -306,7 +306,7 @@ func (s *Server) handleAPIDashboard(w http.ResponseWriter, r *http.Request) {
 	}
 	data := struct {
 		apiResponse
-		Status    admin.StatusView `json:"status,omitempty"`
+		Status    admin.StatusView  `json:"status,omitempty"`
 		Routes    []admin.RouteView `json:"routes,omitempty"`
 		Conflicts []admin.LogEvent  `json:"conflicts,omitempty"`
 		Errors    []admin.LogEvent  `json:"errors,omitempty"`

@@ -14,14 +14,14 @@ type Container struct {
 }
 
 type RouteOptions struct {
-	EnabledLabel *bool
-	LabelDomain  *string
-	LabelDomains []string
-	LabelRoot    *bool
-	LabelPort    *int
-	LabelScheme  *string
+	EnabledLabel  *bool
+	LabelDomain   *string
+	LabelDomains  []string
+	LabelRoot     *bool
+	LabelPort     *int
+	LabelScheme   *string
 	LabelPriority *int
-	OverridePort int
+	OverridePort  int
 }
 
 type WarningRecord = routing.Warning

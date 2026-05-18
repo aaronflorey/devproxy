@@ -71,7 +71,7 @@ func TestInstallCreatesPathsResolverBootstrapsCertsAndStartsDaemon(t *testing.T)
 
 	var calls []string
 	installer := NewInstaller(Dependencies{
-		CurrentEUID: func() int { return 0 },
+		CurrentEUID:    func() int { return 0 },
 		ResolveGUIUser: func() (int, string, error) { return 501, "/Users/dev", nil },
 		EnsurePaths: func(InstallPaths) error {
 			calls = append(calls, "paths")

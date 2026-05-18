@@ -1,0 +1,14 @@
+[tools]
+go = "1.26"
+
+[tasks.fmt]
+description = "Check Go formatting"
+run = "test -z \"$(gofmt -l .)\""
+
+[tasks.test]
+description = "Run Go tests"
+run = "go test ./..."
+
+[tasks.build]
+description = "Build devproxy"
+run = "go build ."
