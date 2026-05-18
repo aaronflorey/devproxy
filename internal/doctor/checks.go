@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
+	mdns "github.com/miekg/dns"
 	"github.com/mochaka/devproxy/internal/admin"
 	"github.com/mochaka/devproxy/internal/adminapi"
-	mdns "github.com/miekg/dns"
 )
 
 type ResolverState struct {

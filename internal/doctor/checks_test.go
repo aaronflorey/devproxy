@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mochaka/devproxy/internal/admin"
 	mdns "github.com/miekg/dns"
+	"github.com/mochaka/devproxy/internal/admin"
 )
 
 func TestCheckLaunchdFailsWhenStateNotRunning(t *testing.T) {
@@ -264,7 +264,7 @@ func TestResolveExampleHostUsesDevproxyDNS(t *testing.T) {
 
 	addr, err := resolveExampleHost(context.Background(), "example.test")
 	if err != nil {
-		 t.Fatalf("resolveExampleHost returned error: %v", err)
+		t.Fatalf("resolveExampleHost returned error: %v", err)
 	}
 	if addr != "127.0.0.1" {
 		t.Fatalf("expected 127.0.0.1, got %q", addr)

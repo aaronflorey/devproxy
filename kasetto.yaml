@@ -1,0 +1,13 @@
+agent: opencode
+scope: project
+
+skills:
+  - source: https://github.com/aaronflorey/agent-skills
+    sub-dir: skills
+    skills:
+      - go-cobra
+      - go-viper
+      - release-please
+      - goreleaser
+      - mise
+      - github-cli

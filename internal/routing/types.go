@@ -10,27 +10,27 @@ const (
 )
 
 type Candidate struct {
-	ContainerID   string
-	ContainerName string
-	Project       string
-	Service       string
-	Source        SourceKind
+	ContainerID    string
+	ContainerName  string
+	Project        string
+	Service        string
+	Source         SourceKind
 	PublishedPorts []PublishedPort
-	Labels        map[string]string
-	Warnings      []Warning
+	Labels         map[string]string
+	Warnings       []Warning
 }
 
 type Route struct {
-	Hostname string
-	Domains  []string
+	Hostname        string
+	Domains         []string
 	ServedHostnames []string
-	Upstream Upstream
-	Winner   Candidate
-	Losers   []Candidate
-	Priority int
-	HTTPSRedirect bool
-	HTTPSOnly bool
-	Provenance RouteProvenance
+	Upstream        Upstream
+	Winner          Candidate
+	Losers          []Candidate
+	Priority        int
+	HTTPSRedirect   bool
+	HTTPSOnly       bool
+	Provenance      RouteProvenance
 }
 
 type RouteProvenance struct {
@@ -63,10 +63,10 @@ type Warning struct {
 }
 
 type Conflict struct {
-	Hostname string
-	Winner   Candidate
-	Losers   []Candidate
-	Reason   string
+	Hostname    string
+	Winner      Candidate
+	Losers      []Candidate
+	Reason      string
 	PriorityTie bool
 }
 
