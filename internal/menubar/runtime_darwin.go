@@ -5,6 +5,7 @@ package menubar
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/getlantern/systray"
@@ -89,9 +90,10 @@ func Run(ctx context.Context, client adminClient, op opener) error {
 	var routeClickCh chan string
 
 	onReady := func() {
-		systray.SetTemplateIcon(trayIcon, trayIcon)
-		systray.SetTitle("DevProxy")
-		statusItem = systray.AddMenuItem("Loading…", "DevProxy status")
+		systray.SetIcon(trayIcon)
+		systray.SetTitle("DP")
+		systray.SetTooltip("DevProxy")
+		statusItem = systray.AddMenuItem("Loading...", "DevProxy status")
 		systray.AddSeparator()
 		refreshItem = systray.AddMenuItem("Refresh Routes", "Refresh routes from daemon")
 		pauseItem = systray.AddMenuItem("Pause Routing", "Pause or resume routing")
@@ -120,10 +122,22 @@ func Run(ctx context.Context, client adminClient, op opener) error {
 			pauseItem.SetTitle("Pause Routing")
 			stateInfo = runtimeState{}
 		}
+		var stateMu sync.RWMutex
+		currentState := stateInfo
 		quitItem := systray.AddMenuItem("Quit", "Quit DevProxy menu bar")
 		go func() {
-			paused := stateInfo.paused
-			startupEnabled := stateInfo.startupEnabled
+			refreshState := func() {
+				updated, err := refreshMenu(context.Background(), client, statusItem, pauseItem, startupItem, &routeSlots, routeSlotFactory, routeClickBinder)
+				if err != nil {
+					state := offlineMenuState(err)
+					statusItem.SetTitle(state.HealthLine + " — " + state.ErrorLine)
+					pauseItem.SetTitle("Pause Routing")
+					return
+				}
+				stateMu.Lock()
+				currentState = updated
+				stateMu.Unlock()
+			}
 			for {
 				select {
 				case routeURL := <-routeClickCh:
@@ -132,8 +146,13 @@ func Run(ctx context.Context, client adminClient, op opener) error {
 					}
 				case <-refreshItem.ClickedCh:
 					_ = d.refresh(context.Background())
+					refreshState()
 				case <-pauseItem.ClickedCh:
+					stateMu.RLock()
+					paused := currentState.paused
+					stateMu.RUnlock()
 					_ = d.togglePause(context.Background(), !paused)
+					refreshState()
 				case <-dashboardItem.ClickedCh:
 					_ = d.openDashboard(context.Background())
 				case <-logsItem.ClickedCh:
@@ -141,7 +160,11 @@ func Run(ctx context.Context, client adminClient, op opener) error {
 				case <-doctorItem.ClickedCh:
 					_ = d.runDoctor(context.Background())
 				case <-startupItem.ClickedCh:
+					stateMu.RLock()
+					startupEnabled := currentState.startupEnabled
+					stateMu.RUnlock()
 					_ = d.toggleStartup(context.Background(), !startupEnabled)
+					refreshState()
 				case <-quitItem.ClickedCh:
 					systray.Quit()
 					return
@@ -156,11 +179,15 @@ func Run(ctx context.Context, client adminClient, op opener) error {
 			ticker := time.NewTicker(3 * time.Second)
 			defer ticker.Stop()
 			for {
-				_, err := refreshMenu(context.Background(), client, statusItem, pauseItem, startupItem, &routeSlots, routeSlotFactory, routeClickBinder)
+				updated, err := refreshMenu(context.Background(), client, statusItem, pauseItem, startupItem, &routeSlots, routeSlotFactory, routeClickBinder)
 				if err != nil {
 					state := offlineMenuState(err)
 					statusItem.SetTitle(state.HealthLine + " — " + state.ErrorLine)
 					pauseItem.SetTitle("Pause Routing")
+				} else {
+					stateMu.Lock()
+					currentState = updated
+					stateMu.Unlock()
 				}
 				select {
 				case <-ticker.C:

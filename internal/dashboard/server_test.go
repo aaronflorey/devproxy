@@ -21,9 +21,9 @@ func TestDashboardRootRendersHealthRoutesConflictsAndSessionErrors(t *testing.T)
 		status: admin.StatusView{SnapshotVersion: "snap-1", ActiveRoutes: 1, Conflicts: 1},
 		routes: []admin.RouteView{{Hostname: "api.acme.test", OpenURL: "http://api.acme.test", UpstreamScheme: "https", UpstreamHost: "127.0.0.1", UpstreamPort: 8443, FallbackReason: "https runtime is not ready"}},
 		logs: []admin.LogEvent{
-		{Timestamp: time.Now().UTC(), Type: "conflict", Hostname: "api.acme.test", Message: "route conflict detected"},
-		{Timestamp: time.Now().UTC(), Type: "error", Hostname: "", Message: "refresh failed"},
-	},
+			{Timestamp: time.Now().UTC(), Type: "conflict", Hostname: "api.acme.test", Message: "route conflict detected"},
+			{Timestamp: time.Now().UTC(), Type: "error", Hostname: "", Message: "refresh failed"},
+		},
 	}
 
 	srv := NewServer(Config{ListenAddress: "127.0.0.1:45831", Client: client})
@@ -36,13 +36,31 @@ func TestDashboardRootRendersHealthRoutesConflictsAndSessionErrors(t *testing.T)
 	}
 	body := w.Body.String()
 	assertContains(t, body, "Refresh Routes")
-	assertContains(t, body, "No Active Routes")
-	assertContains(t, body, "DevProxy can’t reach the daemon right now. Ensure the daemon is running, then select Run Doctor for repair guidance.")
 	assertContains(t, body, "api.acme.test")
 	assertContains(t, body, "route conflict detected")
 	assertContains(t, body, "refresh failed")
 	assertContains(t, body, `href="http://api.acme.test"`)
 	assertContains(t, body, "https runtime is not ready")
+	assertNotContains(t, body, errDaemonUnreachable)
+}
+
+func TestDashboardRootDoesNotShowOfflineErrorWhenDaemonIsHealthyWithoutRoutes(t *testing.T) {
+	t.Parallel()
+
+	client := &stubClient{status: admin.StatusView{SnapshotVersion: "snap-1"}}
+	srv := NewServer(Config{ListenAddress: "127.0.0.1:45831", Client: client})
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+
+	srv.Handler().ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 for /, got %d", w.Code)
+	}
+	body := w.Body.String()
+	assertContains(t, body, "No Active Routes")
+	assertContains(t, body, "DevProxy did not find routable containers. Start your Compose project, then select")
+	assertNotContains(t, body, errDaemonUnreachable)
+	assertNotContains(t, body, "Cannot connect to daemon:")
 }
 
 func TestDashboardRootShowsApprovedOfflineCopyWhenStatusUnavailable(t *testing.T) {
@@ -147,12 +165,12 @@ func TestDashboardRefreshRequiresPost(t *testing.T) {
 }
 
 type stubClient struct {
-	status       admin.StatusView
-	statusErr    error
-	routes       []admin.RouteView
-	logs         []admin.LogEvent
-	doctor       admin.DoctorView
-	refreshErr   error
+	status        admin.StatusView
+	statusErr     error
+	routes        []admin.RouteView
+	logs          []admin.LogEvent
+	doctor        admin.DoctorView
+	refreshErr    error
 	refreshReason string
 }
 
@@ -163,8 +181,8 @@ func (s *stubClient) Status(context.Context) (admin.StatusView, error) {
 	return s.status, nil
 }
 func (s *stubClient) Routes(context.Context) ([]admin.RouteView, error) { return s.routes, nil }
-func (s *stubClient) Logs(context.Context) ([]admin.LogEvent, error) { return s.logs, nil }
-func (s *stubClient) Doctor(context.Context) (admin.DoctorView, error) { return s.doctor, nil }
+func (s *stubClient) Logs(context.Context) ([]admin.LogEvent, error)    { return s.logs, nil }
+func (s *stubClient) Doctor(context.Context) (admin.DoctorView, error)  { return s.doctor, nil }
 func (s *stubClient) Refresh(_ context.Context, reason string) (adminapi.RefreshResponse, error) {
 	s.refreshReason = reason
 	if s.refreshErr != nil {
@@ -176,5 +194,12 @@ func assertContains(t *testing.T, body, expected string) {
 	t.Helper()
 	if !strings.Contains(body, expected) {
 		t.Fatalf("expected body to contain %q\nbody: %s", expected, body)
+	}
+}
+
+func assertNotContains(t *testing.T, body, expected string) {
+	t.Helper()
+	if strings.Contains(body, expected) {
+		t.Fatalf("expected body to not contain %q\nbody: %s", expected, body)
 	}
 }

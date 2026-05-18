@@ -45,6 +45,8 @@ type LaunchdServiceConfig struct {
 
 const launchdDefaultPath = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
+var resolveGUIUser = ResolveGUIUser
+
 func DaemonServiceConfig(paths InstallPaths, guiHome string) LaunchdServiceConfig {
 	cfg := LaunchdServiceConfig{
 		Label:     "com.devproxy.daemon",
@@ -450,7 +452,7 @@ func SetMenubarStartupEnabled(ctx context.Context, paths InstallPaths, enabled b
 }
 
 func activeMenubarServiceConfig(paths InstallPaths) (LaunchdServiceConfig, error) {
-	uid, homeDir, err := ResolveGUIUser()
+	uid, homeDir, err := resolveGUIUser()
 	if err != nil {
 		return LaunchdServiceConfig{}, err
 	}

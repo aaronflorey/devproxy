@@ -73,13 +73,24 @@ func TestRoutesProjectionIncludesDeterministicOpenURLAndFallbackReason_D04(t *te
 	if len(routes) != 1 {
 		t.Fatalf("expected one route view, got %+v", routes)
 	}
-	if routes[0].OpenURL == "" {
-		t.Fatalf("expected deterministic open URL for route, got %+v", routes[0])
+	if got, want := routes[0].OpenURL, "https://api.acme.test"; got != want {
+		t.Fatalf("expected https open URL when runtime is ready, got %q want %q", got, want)
 	}
-	if routes[0].PreferredScheme == "" {
-		t.Fatalf("expected preferred scheme metadata, got %+v", routes[0])
+	if got, want := routes[0].PreferredScheme, "https"; got != want {
+		t.Fatalf("expected https preferred scheme when runtime is ready, got %q want %q", got, want)
 	}
-	if routes[0].PreferredScheme == "http" && routes[0].FallbackReason == "" {
+	if routes[0].FallbackReason != "" {
+		t.Fatalf("expected no fallback reason when https runtime is ready, got %+v", routes[0])
+	}
+
+	routes = RoutesFromSnapshotWithRuntime(snapshot, false)
+	if got, want := routes[0].OpenURL, "http://api.acme.test"; got != want {
+		t.Fatalf("expected http fallback URL when runtime is degraded, got %q want %q", got, want)
+	}
+	if got, want := routes[0].PreferredScheme, "http"; got != want {
+		t.Fatalf("expected http preferred scheme when runtime degrades, got %q want %q", got, want)
+	}
+	if routes[0].FallbackReason == "" {
 		t.Fatalf("expected non-empty fallback reason when preferring http, got %+v", routes[0])
 	}
 }

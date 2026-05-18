@@ -114,6 +114,38 @@ func TestNetworkRuntimeCertificateReadyFromPreparedInventory(t *testing.T) {
 	}
 }
 
+func TestNetworkRuntimeRefreshCertificatesLoadsCoverageForNewRoutes(t *testing.T) {
+	certPath, keyPath := mustWriteTestCertificateFiles(t, []string{"acme.test", "*.acme.test"})
+	snapshot := routing.Snapshot{Routes: map[string]routing.Route{}}
+	runtime, err := NewNetworkRuntime(NetworkRuntimeConfig{
+		ManagedSuffix:        "test",
+		CertificateOutputDir: t.TempDir(),
+		Snapshot:             func() routing.Snapshot { return snapshot },
+		IssueCertificate: func(outputDir string, sans []string) (certs.IssuedCertificate, error) {
+			return certs.IssuedCertificate{ProjectRoot: "acme.test", SANs: append([]string(nil), sans...), CertPath: certPath, KeyPath: keyPath}, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("new network runtime: %v", err)
+	}
+	if runtime.Health().CertificateReady {
+		t.Fatalf("expected empty initial snapshot to start without certificates")
+	}
+
+	snapshot = routing.Snapshot{Routes: map[string]routing.Route{
+		"api.acme.test": {Hostname: "api.acme.test", ServedHostnames: []string{"acme.test", "api.acme.test"}},
+	}}
+	if err := runtime.RefreshCertificates(); err != nil {
+		t.Fatalf("refresh certificates: %v", err)
+	}
+	if !runtime.Health().CertificateReady {
+		t.Fatalf("expected certificate readiness after refreshing routes")
+	}
+	if _, err := runtime.HTTPSHandler().TLSConfig().GetCertificate(&tls.ClientHelloInfo{ServerName: "api.acme.test"}); err != nil {
+		t.Fatalf("expected refreshed certificate to be loaded: %v", err)
+	}
+}
+
 func TestNetworkRuntimeStartBindsHTTPHTTPSAndDNS(t *testing.T) {
 	runtime, err := NewNetworkRuntime(NetworkRuntimeConfig{
 		ManagedSuffix: "test",

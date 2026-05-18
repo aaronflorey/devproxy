@@ -1,6 +1,8 @@
 package devproxy
 
 import (
+	"runtime"
+
 	"github.com/mochaka/devproxy/internal/adminapi"
 	"github.com/mochaka/devproxy/internal/menubar"
 	"github.com/spf13/cobra"
@@ -17,6 +19,7 @@ func newMenubarCommand() *cobra.Command {
 		Short: "Run the DevProxy macOS menu bar runtime",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			_ = args
+			runtime.LockOSThread()
 			client := adminapi.NewClient(socketPath)
 			return menubar.Run(cmd.Context(), client, menubar.NewOpener())
 		},

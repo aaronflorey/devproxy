@@ -29,16 +29,11 @@ func RoutesFromSnapshotWithRuntime(snapshot routing.Snapshot, httpsReady bool) [
 
 	out := []RouteView{}
 	for host, route := range snapshot.Routes {
-		preferredScheme := "http"
+		preferredScheme := "https"
 		fallbackReason := ""
-		if route.Upstream.Scheme == "https" {
-			preferredScheme = "https"
-			if !httpsReady {
-				preferredScheme = "http"
-				fallbackReason = "https runtime is not ready"
-			}
-		} else {
-			fallbackReason = "route is configured for HTTP"
+		if !httpsReady {
+			preferredScheme = "http"
+			fallbackReason = "https runtime is not ready"
 		}
 		view := RouteView{
 			Hostname:        host,
