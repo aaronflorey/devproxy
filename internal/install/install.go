@@ -189,7 +189,7 @@ func prepareMenubarBundle(sourceBinaryPath string, paths InstallPaths) error {
 	<key>CFBundleVersion</key>
 	<string>1</string>
 	<key>LSUIElement</key>
-	<string>1</string>
+	<true/>
 </dict>
 </plist>
 `, filepath.Base(executablePath))

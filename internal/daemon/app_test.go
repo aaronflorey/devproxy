@@ -2,8 +2,11 @@ package daemon
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
+	"fmt"
 	"net"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -11,6 +14,7 @@ import (
 	"time"
 
 	"github.com/mochaka/devproxy/internal/adminapi"
+	"github.com/mochaka/devproxy/internal/certs"
 	"github.com/mochaka/devproxy/internal/config"
 	"github.com/mochaka/devproxy/internal/discovery"
 )
@@ -19,7 +23,7 @@ func TestDaemonAppStartDegradesWhenDependenciesUnavailable(t *testing.T) {
 	t.Run("docker unavailable still starts admin socket", func(t *testing.T) {
 		app := NewApp(AppConfig{
 			Config:           configFixture(),
-			AdminSocketPath:  filepath.Join(t.TempDir(), "admin.sock"),
+			AdminSocketPath:  tempAdminSocketPath(t),
 			DashboardAddress: "127.0.0.1:0",
 			DNSAddress:       "127.0.0.1:0",
 			HTTPAddress:      "127.0.0.1:0",
@@ -81,7 +85,7 @@ func TestDaemonAppStartDegradesWhenDependenciesUnavailable(t *testing.T) {
 	t.Run("listener bind validation failure is recorded", func(t *testing.T) {
 		app := NewApp(AppConfig{
 			Config:           configFixture(),
-			AdminSocketPath:  filepath.Join(t.TempDir(), "admin.sock"),
+			AdminSocketPath:  tempAdminSocketPath(t),
 			DashboardAddress: "127.0.0.1:0",
 			DNSAddress:       "127.0.0.1:0",
 			HTTPAddress:      "127.0.0.1:0",
@@ -116,7 +120,7 @@ func TestDaemonAppStartDegradesWhenDependenciesUnavailable(t *testing.T) {
 
 		app := NewApp(AppConfig{
 			Config:           configFixture(),
-			AdminSocketPath:  filepath.Join(t.TempDir(), "admin.sock"),
+			AdminSocketPath:  tempAdminSocketPath(t),
 			DashboardAddress: "127.0.0.1:0",
 			DNSAddress:       "127.0.0.1:0",
 			HTTPAddress:      listener.Addr().String(),
@@ -205,6 +209,54 @@ func TestRefreshRecordsDockerScanFailures(t *testing.T) {
 	}
 }
 
+func TestRefreshUpdatesNetworkCertificatesForNewRoutes(t *testing.T) {
+	t.Parallel()
+
+	adminSocket := tempAdminSocketPath(t)
+	state := []ContainerState{}
+	app := NewApp(AppConfig{
+		Config:           configFixture(),
+		AdminSocketPath:  adminSocket,
+		DashboardAddress: "127.0.0.1:0",
+		DNSAddress:       "127.0.0.1:0",
+		HTTPAddress:      "127.0.0.1:0",
+		HTTPSAddress:     "127.0.0.1:0",
+		DockerScan: func(context.Context) ([]ContainerState, error) {
+			return append([]ContainerState(nil), state...), nil
+		},
+		EnsureMKCert:     func(context.Context) error { return nil },
+		IssueCertificate: issueTestCertificate(t),
+	})
+	defer func() { _ = app.Close(context.Background()) }()
+
+	if err := app.Start(context.Background()); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	if app.network == nil {
+		t.Fatal("expected network runtime")
+	}
+	if app.network.Health().CertificateReady {
+		t.Fatalf("expected no certificates before routes exist")
+	}
+
+	state = []ContainerState{testContainer("acme", "api", "acme-api-1", 8080)}
+	if err := app.Refresh(context.Background()); err != nil {
+		t.Fatalf("refresh: %v", err)
+	}
+	if !app.network.Health().CertificateReady {
+		t.Fatalf("expected refresh to load certificates for new routes")
+	}
+	if _, err := app.network.HTTPSHandler().TLSConfig().GetCertificate(&tls.ClientHelloInfo{ServerName: "api.acme.test"}); err != nil {
+		t.Fatalf("expected route certificate after refresh: %v", err)
+	}
+	issues := app.stateSnapshot().Issues
+	for _, issue := range issues {
+		if issue.Role == "https" && issue.Action == "certificate-refresh" {
+			t.Fatalf("did not expect certificate refresh issue, got %+v", issue)
+		}
+	}
+}
+
 func TestAppStartProcessesLiveDockerEvents(t *testing.T) {
 	t.Parallel()
 
@@ -218,7 +270,7 @@ func TestAppStartProcessesLiveDockerEvents(t *testing.T) {
 	scanCalls := 0
 	app := NewApp(AppConfig{
 		Config:           configFixture(),
-		AdminSocketPath:  filepath.Join(t.TempDir(), "admin.sock"),
+		AdminSocketPath:  tempAdminSocketPath(t),
 		DashboardAddress: "127.0.0.1:0",
 		DNSAddress:       "127.0.0.1:0",
 		HTTPAddress:      "127.0.0.1:0",
@@ -232,6 +284,7 @@ func TestAppStartProcessesLiveDockerEvents(t *testing.T) {
 		DockerEvents: func(context.Context) (*EventStream, error) {
 			return &EventStream{Events: eventCh, Errors: errCh}, nil
 		},
+		IssueCertificate: issueTestCertificate(t),
 	})
 	defer func() { _ = app.Close(context.Background()) }()
 
@@ -267,7 +320,7 @@ func TestAppWatcherReconnectsWithFullResync(t *testing.T) {
 	connectCount := 0
 	app := NewApp(AppConfig{
 		Config:           configFixture(),
-		AdminSocketPath:  filepath.Join(t.TempDir(), "admin.sock"),
+		AdminSocketPath:  tempAdminSocketPath(t),
 		DashboardAddress: "127.0.0.1:0",
 		DNSAddress:       "127.0.0.1:0",
 		HTTPAddress:      "127.0.0.1:0",
@@ -283,6 +336,7 @@ func TestAppWatcherReconnectsWithFullResync(t *testing.T) {
 			connectCount++
 			return stream, nil
 		},
+		IssueCertificate: issueTestCertificate(t),
 	})
 	defer func() { _ = app.Close(context.Background()) }()
 
@@ -327,6 +381,26 @@ func waitFor(t *testing.T, check func() bool, description string) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatalf("timed out waiting for %s", description)
+}
+
+func tempAdminSocketPath(t *testing.T) string {
+	t.Helper()
+	path := filepath.Join("/tmp", fmt.Sprintf("devproxy-%d.sock", time.Now().UnixNano()))
+	t.Cleanup(func() { _ = os.Remove(path) })
+	return path
+}
+
+func issueTestCertificate(t *testing.T) func(string, []string) (certs.IssuedCertificate, error) {
+	t.Helper()
+	return func(_ string, sans []string) (certs.IssuedCertificate, error) {
+		certPath, keyPath := mustWriteTestCertificateFiles(t, sans)
+		return certs.IssuedCertificate{
+			ProjectRoot: sans[0],
+			SANs:        append([]string(nil), sans...),
+			CertPath:    certPath,
+			KeyPath:     keyPath,
+		}, nil
+	}
 }
 
 func configFixture() config.Config {

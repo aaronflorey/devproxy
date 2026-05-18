@@ -469,6 +469,9 @@ func TestPrepareMenubarBundleCreatesAppBundle(t *testing.T) {
 	if !strings.Contains(plist, "<key>LSUIElement</key>") {
 		t.Fatalf("expected LSUIElement in bundle Info.plist")
 	}
+	if !strings.Contains(plist, "<key>LSUIElement</key>\n\t<true/>") {
+		t.Fatalf("expected LSUIElement to be written as a boolean true, got %q", plist)
+	}
 	if !strings.Contains(plist, "devproxy-menubar") {
 		t.Fatalf("expected bundle executable name in Info.plist")
 	}

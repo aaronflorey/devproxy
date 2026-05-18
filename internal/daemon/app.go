@@ -27,6 +27,7 @@ type AppConfig struct {
 	DockerScan          func(context.Context) ([]ContainerState, error)
 	DockerEvents        DockerEventSource
 	EnsureMKCert        func(context.Context) error
+	IssueCertificate    func(outputDir string, sans []string) (certs.IssuedCertificate, error)
 	BuildNetworkRuntime func(context.Context) error
 }
 
@@ -100,6 +101,7 @@ func (a *App) Start(ctx context.Context) error {
 		RoutingPaused:        a.reconciler.IsRoutingPaused,
 		StoredCertificates:   map[string]certs.StoredCertificate{},
 		CertificateOutputDir: filepath.Dir(a.cfg.AdminSocketPath),
+		IssueCertificate:     a.cfg.IssueCertificate,
 		DNSAddress:           a.cfg.DNSAddress,
 		HTTPAddress:          a.cfg.HTTPAddress,
 		HTTPSAddress:         a.cfg.HTTPSAddress,
@@ -175,7 +177,11 @@ func (a *App) Run(ctx context.Context) error {
 }
 
 func (a *App) Refresh(ctx context.Context) error {
-	return a.refreshFromDocker(ctx)
+	if err := a.refreshFromDocker(ctx); err != nil {
+		return err
+	}
+	a.syncNetworkCertificates()
+	return nil
 }
 
 func (a *App) setRoutingPaused(_ context.Context, paused bool) error {
@@ -365,12 +371,16 @@ func (a *App) handleDockerEvent(ctx context.Context, event DockerEvent) {
 	if !a.watcher.Health().Connected {
 		if err := a.watcher.OnReconnect(containers); err != nil {
 			a.recordWatcherIssue("event-resync", err)
+			return
 		}
+		a.syncNetworkCertificates()
 		return
 	}
 	if err := a.watcher.HandleEvent(event.Action, containers); err != nil {
 		a.recordIssue("docker", "event-ignore", err.Error())
+		return
 	}
+	a.syncNetworkCertificates()
 }
 
 func (a *App) resyncWatcher(ctx context.Context) error {
@@ -383,7 +393,17 @@ func (a *App) resyncWatcher(ctx context.Context) error {
 		a.recordWatcherIssue("reconnect-sync", err)
 		return err
 	}
+	a.syncNetworkCertificates()
 	return nil
+}
+
+func (a *App) syncNetworkCertificates() {
+	if a.network == nil {
+		return
+	}
+	if err := a.network.RefreshCertificates(); err != nil {
+		a.recordIssue("https", "certificate-refresh", err.Error())
+	}
 }
 
 func (a *App) recordWatcherIssue(action string, err error) {

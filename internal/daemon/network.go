@@ -50,6 +50,10 @@ type NetworkRuntime struct {
 	managedSuffix string
 	readSnapshot  func() routing.Snapshot
 	readPaused    func() bool
+	certificates  map[string]tls.Certificate
+	storedCerts   map[string]certs.StoredCertificate
+	certOutputDir string
+	issueCert     func(outputDir string, sans []string) (certs.IssuedCertificate, error)
 	httpHandler   *proxy.HTTPHandler
 	httpsHandler  *proxy.HTTPSListener
 	health        NetworkRuntimeHealth
@@ -66,7 +70,10 @@ func NewNetworkRuntime(cfg NetworkRuntimeConfig) (*NetworkRuntime, error) {
 	if snapshot == nil {
 		snapshot = func() routing.Snapshot { return routing.Snapshot{Routes: map[string]routing.Route{}} }
 	}
-	prepared, _ := prepareStoredCertificates(snapshot(), cfg)
+	prepared, err := prepareStoredCertificates(snapshot(), cfg)
+	if err != nil {
+		return nil, err
+	}
 	httpHandler := proxy.NewHTTPHandler(proxy.HTTPHandlerConfig{ManagedSuffix: cfg.ManagedSuffix, Snapshot: snapshot, RoutingPaused: cfg.RoutingPaused})
 	httpsHandler, err := proxy.NewHTTPSListener(proxy.HTTPSListenerConfig{ManagedSuffix: cfg.ManagedSuffix, Snapshot: snapshot, RoutingPaused: cfg.RoutingPaused, Certificates: cfg.Certificates, Stored: prepared})
 	if err != nil {
@@ -88,7 +95,17 @@ func NewNetworkRuntime(cfg NetworkRuntimeConfig) (*NetworkRuntime, error) {
 	if dnsAddress == "" {
 		dnsAddress = "127.0.0.1:53535"
 	}
-	runtime := &NetworkRuntime{managedSuffix: cfg.ManagedSuffix, readSnapshot: snapshot, readPaused: paused, httpHandler: httpHandler, httpsHandler: httpsHandler}
+	runtime := &NetworkRuntime{
+		managedSuffix: cfg.ManagedSuffix,
+		readSnapshot:  snapshot,
+		readPaused:    paused,
+		certificates:  cloneTLSCertificates(cfg.Certificates),
+		storedCerts:   indexStoredCertificates(prepared),
+		certOutputDir: certificateOutputDir(cfg.CertificateOutputDir),
+		issueCert:     certificateIssuer(cfg.IssueCertificate),
+		httpHandler:   httpHandler,
+		httpsHandler:  httpsHandler,
+	}
 	runtime.health = NetworkRuntimeHealth{
 		DNS:              ListenerHealth{Enabled: true, Bound: false, BindAddress: dnsAddress},
 		HTTP:             ListenerHealth{Enabled: true, Bound: false, BindAddress: httpAddress},
@@ -97,6 +114,30 @@ func NewNetworkRuntime(cfg NetworkRuntimeConfig) (*NetworkRuntime, error) {
 		CertificateReady: len(cfg.Certificates) > 0 || len(prepared) > 0,
 	}
 	return runtime, nil
+}
+
+func (n *NetworkRuntime) RefreshCertificates() error {
+	prepared, err := prepareStoredCertificates(n.readSnapshot(), NetworkRuntimeConfig{
+		ManagedSuffix:        n.managedSuffix,
+		Certificates:         n.certificates,
+		StoredCertificates:   cloneStoredCertificates(n.storedCerts),
+		CertificateOutputDir: n.certOutputDir,
+		IssueCertificate:     n.issueCert,
+	})
+	if err != nil {
+		n.SetCertificateReady(false)
+		return err
+	}
+	if err := n.httpsHandler.ReplaceCertificates(n.certificates, prepared); err != nil {
+		n.SetCertificateReady(false)
+		return err
+	}
+
+	n.mu.Lock()
+	n.storedCerts = indexStoredCertificates(prepared)
+	n.health.CertificateReady = len(n.certificates) > 0 || len(prepared) > 0
+	n.mu.Unlock()
+	return nil
 }
 
 func (n *NetworkRuntime) HTTPHandler() *proxy.HTTPHandler    { return n.httpHandler }
@@ -235,6 +276,59 @@ func errorString(err error) string {
 		return ""
 	}
 	return err.Error()
+}
+
+func cloneTLSCertificates(in map[string]tls.Certificate) map[string]tls.Certificate {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]tls.Certificate, len(in))
+	for k, v := range in {
+		out[k] = v
+	}
+	return out
+}
+
+func cloneStoredCertificates(in map[string]certs.StoredCertificate) map[string]certs.StoredCertificate {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]certs.StoredCertificate, len(in))
+	for k, v := range in {
+		out[k] = v
+	}
+	return out
+}
+
+func indexStoredCertificates(stored []certs.StoredCertificate) map[string]certs.StoredCertificate {
+	if len(stored) == 0 {
+		return nil
+	}
+	indexed := make(map[string]certs.StoredCertificate, len(stored))
+	for _, cert := range stored {
+		if cert.ProjectRoot == "" {
+			continue
+		}
+		indexed[cert.ProjectRoot] = cert
+	}
+	if len(indexed) == 0 {
+		return nil
+	}
+	return indexed
+}
+
+func certificateOutputDir(dir string) string {
+	if dir == "" {
+		return "."
+	}
+	return dir
+}
+
+func certificateIssuer(issue func(outputDir string, sans []string) (certs.IssuedCertificate, error)) func(outputDir string, sans []string) (certs.IssuedCertificate, error) {
+	if issue == nil {
+		return certs.MKCertIssuer{}.Issue
+	}
+	return issue
 }
 
 func prepareStoredCertificates(snapshot routing.Snapshot, cfg NetworkRuntimeConfig) ([]certs.StoredCertificate, error) {

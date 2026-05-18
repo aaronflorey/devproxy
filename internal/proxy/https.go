@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/mochaka/devproxy/internal/certs"
 	"github.com/mochaka/devproxy/internal/dns"
@@ -22,6 +23,7 @@ type HTTPSListenerConfig struct {
 }
 
 type HTTPSListener struct {
+	mu           sync.RWMutex
 	handler      *HTTPHandler
 	dnsLookup    *dns.Server
 	tlsConfig    *tls.Config
@@ -32,27 +34,26 @@ func NewHTTPSListener(cfg HTTPSListenerConfig) (*HTTPSListener, error) {
 	h := NewHTTPHandler(HTTPHandlerConfig{ManagedSuffix: cfg.ManagedSuffix, Snapshot: cfg.Snapshot, RoutingPaused: cfg.RoutingPaused, Transport: cfg.Transport})
 	lookup := dns.NewServer(cfg.ManagedSuffix, cfg.Snapshot)
 
-	inventory := map[string]tls.Certificate{}
-	for k, v := range cfg.Certificates {
-		inventory[normalizeHostname(k)] = ensureParsedLeaf(v)
-	}
-
-	if len(inventory) == 0 && len(cfg.Stored) > 0 {
-		for _, stored := range cfg.Stored {
-			if stored.ProjectRoot == "" {
-				continue
-			}
-			loaded, err := tls.LoadX509KeyPair(stored.CertPath, stored.KeyPath)
-			if err != nil {
-				return nil, fmt.Errorf("load certificate %s: %w", stored.ProjectRoot, err)
-			}
-			inventory[normalizeHostname(stored.ProjectRoot)] = ensureParsedLeaf(loaded)
-		}
+	inventory, err := buildCertificateMap(cfg.Certificates, cfg.Stored)
+	if err != nil {
+		return nil, err
 	}
 
 	l := &HTTPSListener{handler: h, dnsLookup: lookup, certificates: inventory}
 	l.tlsConfig = &tls.Config{MinVersion: tls.VersionTLS12, GetCertificate: l.getCertificate}
 	return l, nil
+}
+
+func (l *HTTPSListener) ReplaceCertificates(certificates map[string]tls.Certificate, stored []certs.StoredCertificate) error {
+	inventory, err := buildCertificateMap(certificates, stored)
+	if err != nil {
+		return err
+	}
+
+	l.mu.Lock()
+	l.certificates = inventory
+	l.mu.Unlock()
+	return nil
 }
 
 func (l *HTTPSListener) HandleHTTPS(w http.ResponseWriter, r *http.Request) bool {
@@ -77,6 +78,9 @@ func (l *HTTPSListener) getCertificate(hello *tls.ClientHelloInfo) (*tls.Certifi
 		return nil, fmt.Errorf("no managed route for %s", host)
 	}
 
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+
 	if cert, ok := l.certificates[host]; ok {
 		return &cert, nil
 	}
@@ -93,6 +97,30 @@ func (l *HTTPSListener) getCertificate(hello *tls.ClientHelloInfo) (*tls.Certifi
 	}
 
 	return nil, fmt.Errorf("no certificate available for %s", host)
+}
+
+func buildCertificateMap(certificates map[string]tls.Certificate, stored []certs.StoredCertificate) (map[string]tls.Certificate, error) {
+	inventory := map[string]tls.Certificate{}
+	for k, v := range certificates {
+		inventory[normalizeHostname(k)] = ensureParsedLeaf(v)
+	}
+
+	if len(inventory) > 0 || len(stored) == 0 {
+		return inventory, nil
+	}
+
+	for _, storedCert := range stored {
+		if storedCert.ProjectRoot == "" {
+			continue
+		}
+		loaded, err := tls.LoadX509KeyPair(storedCert.CertPath, storedCert.KeyPath)
+		if err != nil {
+			return nil, fmt.Errorf("load certificate %s: %w", storedCert.ProjectRoot, err)
+		}
+		inventory[normalizeHostname(storedCert.ProjectRoot)] = ensureParsedLeaf(loaded)
+	}
+
+	return inventory, nil
 }
 
 func certificateCoversHost(cert *tls.Certificate, host string) bool {
