@@ -1,16 +1,23 @@
 # DevProxy
 
 [![CI](https://github.com/aaronflorey/devproxy/actions/workflows/ci.yaml/badge.svg)](https://github.com/aaronflorey/devproxy/actions/workflows/ci.yaml)
-[![Release](https://img.shields.io/github/v/release/aaronflorey/devproxy?display_name=tag)](https://github.com/aaronflorey/devproxy/releases)
 [![License](https://img.shields.io/github/license/aaronflorey/devproxy)](./LICENSE)
 
 DevProxy is a macOS-native developer tool that watches Docker Compose projects, assigns local vanity domains like `acme-crm.test`, serves local DNS, and proxies HTTP and HTTPS traffic to the correct published localhost port.
 
-## Status
+## What It Does
 
 - macOS only
 - Built as a Go CLI with an optional menu bar runtime
 - Designed for local Docker Desktop workflows
+
+## Documentation
+
+- [Getting started](./docs/getting-started.md)
+- [CLI reference](./docs/cli.md)
+- [Configuration](./docs/configuration.md)
+- [Troubleshooting](./docs/troubleshooting.md)
+- [Architecture](./docs/architecture.md)
 
 ## Prerequisites
 
@@ -25,24 +32,31 @@ From source:
 
 ```bash
 mise install
+mise run test
 mise run build
 sudo ./devproxy install --with-menubar
 ```
 
-Homebrew release packaging is configured for `aaronflorey/homebrew-tap` and becomes usable after tagged releases are published.
+Verify the runtime:
 
-## Development Setup
+```bash
+devproxy status
+devproxy doctor
+devproxy routes
+```
+
+## Development
 
 ```bash
 mise install
+mise run fmt
 mise run test
+mise run build
 ```
 
 Useful commands:
 
 ```bash
-mise run fmt
-mise run build
 go run . status
 go run . doctor
 go run . routes
@@ -85,13 +99,6 @@ Remove the installed services:
 ```bash
 sudo devproxy uninstall --with-menubar --yes
 ```
-
-## Releases
-
-- Conventional commits drive release automation through `release-please`
-- Tags are created as `vX.Y.Z`
-- Tagged releases publish GitHub release artifacts with GoReleaser
-- Homebrew formula updates are published to `aaronflorey/homebrew-tap`
 
 ## Contributing
 

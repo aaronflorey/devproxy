@@ -1,0 +1,59 @@
+version: 1
+last_run: '1779159521'
+skills:
+  https://github.com/aaronflorey/agent-skills::github-cli:
+    destination: /Users/aaronflorey/Code/devproxy/.opencode/skills/github-cli
+    hash: c991a898a4fa6fe36d9374e6a14c405864427ef4592ef0b5188b248c4ef713b5
+    skill: github-cli
+    description: Use GitHub CLI, `gh`, for authentication, repository work, issues, pull requests, releases, Actions, projects, and `gh api` calls. Use this skill whenever the user mentions `gh`, `gh pr`, `gh issue`, `gh repo`, `gh run`, `gh workflow`, `gh auth`, wants a GitHub CLI command example, needs to script GitHub operations, or wants to translate GitHub UI steps into terminal commands.
+    source: https://github.com/aaronflorey/agent-skills
+    source_revision: branch:main
+    updated_at: '1779159521'
+    scope: project
+  https://github.com/aaronflorey/agent-skills::go-cobra:
+    destination: /Users/aaronflorey/Code/devproxy/.opencode/skills/go-cobra
+    hash: 24d4e4be96743db906973543fc949ce1419abf1647ab6439e5d71ac7f0e909a5
+    skill: go-cobra
+    description: Write, scaffold, and debug Go CLI applications with `github.com/spf13/cobra`. Use this skill whenever the user mentions Cobra, `cobra.Command`, a Go command-line app, subcommands, persistent or local flags, required flags, argument validation, shell completions, generated docs, or wants to build or refactor a cobra-based CLI.
+    source: https://github.com/aaronflorey/agent-skills
+    source_revision: branch:main
+    updated_at: '1779159521'
+    scope: project
+  https://github.com/aaronflorey/agent-skills::go-viper:
+    destination: /Users/aaronflorey/Code/devproxy/.opencode/skills/go-viper
+    hash: bb7e01580daccaedfbc8f4745ca52adeafcc7e96a8d302c7179897245225935c
+    skill: go-viper
+    description: Write, debug, and explain Go configuration code with `github.com/spf13/viper`. Use this skill whenever the user mentions Viper, `viper`, config structs, reading config from files plus env vars plus flags, Cobra or `pflag` integration, unmarshaling into structs, env key replacers, config precedence, config watching, or a clean Viper bootstrap.
+    source: https://github.com/aaronflorey/agent-skills
+    source_revision: branch:main
+    updated_at: '1779159521'
+    scope: project
+  https://github.com/aaronflorey/agent-skills::goreleaser:
+    destination: /Users/aaronflorey/Code/devproxy/.opencode/skills/goreleaser
+    hash: 699cf5a51d6fd92bc82c647c65d091e27b03c4d96f08ac804ab74411806d9dee
+    skill: goreleaser
+    description: '>'
+    source: https://github.com/aaronflorey/agent-skills
+    source_revision: branch:main
+    updated_at: '1779159521'
+    scope: project
+  https://github.com/aaronflorey/agent-skills::mise:
+    destination: /Users/aaronflorey/Code/devproxy/.opencode/skills/mise
+    hash: 331583dab11825b02c50045d6655bce0b824e3c6076a3fdaaa95f91fc79ed4e1
+    skill: mise
+    description: Configure and use `mise` for dev tool management, environment variables, and task running. Use this skill when the user mentions `mise`, `mise.toml`, `.mise.toml`, `mise use`, `mise install`, `mise run`, `mise x`, project tool versions like Node or Python, task definitions, env vars, hooks, backends, or asks how to configure mise in a project.
+    source: https://github.com/aaronflorey/agent-skills
+    source_revision: branch:main
+    updated_at: '1779159521'
+    scope: project
+  https://github.com/aaronflorey/agent-skills::release-please:
+    destination: /Users/aaronflorey/Code/devproxy/.opencode/skills/release-please
+    hash: d2532033ef054189cdc1b14d38cb2db2c1667f0de48bf60359d28236013093a1
+    skill: release-please
+    description: Set up `release-please` for automated releases in a repository. Use this skill when the user mentions release-please, `googleapis/release-please-action`, release PRs, conventional commits, `release-please-config.json`, `.release-please-manifest.json`, GitHub Actions release automation, or wants to bootstrap or debug release-please in a new or existing repo.
+    source: https://github.com/aaronflorey/agent-skills
+    source_revision: branch:main
+    updated_at: '1779159521'
+    scope: project
+assets: {}
+latest_report: '{"run_id":"1779159521","config":"/Users/aaronflorey/Code/devproxy/kasetto.yaml","destination":"/Users/aaronflorey/Code/devproxy/.opencode/skills","dry_run":false,"summary":{"installed":6,"updated":0,"removed":0,"unchanged":0,"broken":0,"failed":0},"actions":[{"source":"https://github.com/aaronflorey/agent-skills","skill":"go-cobra","status":"installed","error":null},{"source":"https://github.com/aaronflorey/agent-skills","skill":"go-viper","status":"installed","error":null},{"source":"https://github.com/aaronflorey/agent-skills","skill":"release-please","status":"installed","error":null},{"source":"https://github.com/aaronflorey/agent-skills","skill":"goreleaser","status":"installed","error":null},{"source":"https://github.com/aaronflorey/agent-skills","skill":"mise","status":"installed","error":null},{"source":"https://github.com/aaronflorey/agent-skills","skill":"github-cli","status":"installed","error":null}]}'
