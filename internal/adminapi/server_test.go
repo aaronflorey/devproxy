@@ -52,7 +52,7 @@ func TestAdminAPIRemovesStaleSocketBeforeBind(t *testing.T) {
 }
 
 func TestSetAdminSocketAccess_DarwinUsesActiveGUIUserOwnership(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "admin.sock")
+	path := tempSocketPath(t, "admin.sock")
 	if err := os.WriteFile(path, []byte("socket-marker"), 0o600); err != nil {
 		t.Fatalf("write marker: %v", err)
 	}
@@ -113,7 +113,7 @@ func TestSetAdminSocketAccess_DarwinUsesActiveGUIUserOwnership(t *testing.T) {
 }
 
 func TestSetAdminSocketAccess_DarwinGUIUserResolutionFailureReturnsError(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "admin.sock")
+	path := tempSocketPath(t, "admin.sock")
 	if err := os.WriteFile(path, []byte("socket-marker"), 0o600); err != nil {
 		t.Fatalf("write marker: %v", err)
 	}
@@ -232,7 +232,7 @@ func TestRegisterCoreCommandsIncludesDaemonAndPrintConfig(t *testing.T) {
 
 func mustStartTestServer(t *testing.T, state StateSnapshot) (*Server, string) {
 	t.Helper()
-	socketPath := filepath.Join(t.TempDir(), "admin.sock")
+	socketPath := tempSocketPath(t, "admin.sock")
 	server, err := NewServer(ServerConfig{SocketPath: socketPath, State: staticStateProviderWith(state)})
 	if err != nil {
 		t.Fatalf("new server: %v", err)

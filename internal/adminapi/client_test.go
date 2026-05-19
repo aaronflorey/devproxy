@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -81,13 +80,13 @@ func TestClientRefreshReturnsErrorOnDaemonFailure(t *testing.T) {
 }
 
 func TestClientReturnsExplicitSocketAndMalformedResponseErrors(t *testing.T) {
-	missing := NewClient(filepath.Join(t.TempDir(), "missing.sock"))
+	missing := NewClient(tempSocketPath(t, "missing.sock"))
 	_, err := missing.Status(context.Background())
 	if err == nil || !strings.Contains(err.Error(), "connect admin socket") {
 		t.Fatalf("expected explicit socket error, got %v", err)
 	}
 
-	socketPath := filepath.Join(t.TempDir(), "bad.sock")
+	socketPath := tempSocketPath(t, "bad.sock")
 	listener, err := net.Listen("unix", socketPath)
 	if err != nil {
 		t.Fatalf("listen bad socket: %v", err)
@@ -114,7 +113,7 @@ func TestClientReturnsExplicitSocketAndMalformedResponseErrors(t *testing.T) {
 }
 
 func TestClientReturnsErrorOnMalformedRefreshResponse(t *testing.T) {
-	socketPath := filepath.Join(t.TempDir(), "bad-refresh.sock")
+	socketPath := tempSocketPath(t, "bad-refresh.sock")
 	listener, err := net.Listen("unix", socketPath)
 	if err != nil {
 		t.Fatalf("listen bad socket: %v", err)
@@ -141,7 +140,7 @@ func TestClientReturnsErrorOnMalformedRefreshResponse(t *testing.T) {
 }
 
 func TestClientUsesPostForRefresh(t *testing.T) {
-	socketPath := filepath.Join(t.TempDir(), "method.sock")
+	socketPath := tempSocketPath(t, "method.sock")
 	listener, err := net.Listen("unix", socketPath)
 	if err != nil {
 		t.Fatalf("listen socket: %v", err)
@@ -215,7 +214,7 @@ func TestClientSupportsRoutingPauseResumeAndStartupEndpoints_D01_D02_D03(t *test
 }
 
 func TestClientStartupStatusReturnsErrorOnNonSuccessResponse(t *testing.T) {
-	socketPath := filepath.Join(t.TempDir(), "startup-error.sock")
+	socketPath := tempSocketPath(t, "startup-error.sock")
 	listener, err := net.Listen("unix", socketPath)
 	if err != nil {
 		t.Fatalf("listen startup socket: %v", err)

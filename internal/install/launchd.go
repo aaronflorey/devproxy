@@ -46,6 +46,7 @@ type LaunchdServiceConfig struct {
 const launchdDefaultPath = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
 var resolveGUIUser = ResolveGUIUser
+var osStat = os.Stat
 
 func DaemonServiceConfig(paths InstallPaths, guiHome string) LaunchdServiceConfig {
 	cfg := LaunchdServiceConfig{
@@ -253,7 +254,7 @@ func stopServiceBestEffort(cfg LaunchdServiceConfig) error {
 }
 
 func validateLaunchdPreflight(cfg LaunchdServiceConfig) error {
-	if _, err := os.Stat(cfg.PlistPath); err != nil {
+	if _, err := osStat(cfg.PlistPath); err != nil {
 		if os.IsNotExist(err) {
 			return fmt.Errorf("launchd preflight failed: plist %q does not exist; reinstall and retry", cfg.PlistPath)
 		}
@@ -267,7 +268,7 @@ func validateLaunchdPreflight(cfg LaunchdServiceConfig) error {
 	if cfg.Program == "" {
 		return fmt.Errorf("launchd preflight failed: program path is empty in service config")
 	}
-	programInfo, err := os.Stat(cfg.Program)
+	programInfo, err := osStat(cfg.Program)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return fmt.Errorf("launchd preflight failed: program %q does not exist; reinstall devproxy binary", cfg.Program)
@@ -288,7 +289,7 @@ func validateLaunchdPreflight(cfg LaunchdServiceConfig) error {
 }
 
 func validateSystemDaemonPlistPerms(path string) error {
-	info, err := os.Stat(path)
+	info, err := osStat(path)
 	if err != nil {
 		return fmt.Errorf("launchd preflight failed: cannot stat daemon plist %q: %w", path, err)
 	}

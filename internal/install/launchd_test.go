@@ -7,8 +7,41 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 )
+
+type statOverrideFileInfo struct {
+	os.FileInfo
+	sys any
+}
+
+func (info statOverrideFileInfo) Sys() any {
+	return info.sys
+}
+
+func mockRootOwnedPlistStat(t *testing.T, plistPath string) {
+	t.Helper()
+
+	originalStat := osStat
+	osStat = func(path string) (os.FileInfo, error) {
+		info, err := originalStat(path)
+		if err != nil || path != plistPath || runtime.GOOS != "darwin" {
+			return info, err
+		}
+
+		stat, ok := info.Sys().(*syscall.Stat_t)
+		if !ok {
+			return info, nil
+		}
+
+		rootOwned := *stat
+		rootOwned.Uid = 0
+		rootOwned.Gid = 0
+		return statOverrideFileInfo{FileInfo: info, sys: &rootOwned}, nil
+	}
+	t.Cleanup(func() { osStat = originalStat })
+}
 
 func TestStartServiceFailsPreflightWhenProgramNotExecutable(t *testing.T) {
 	tmp := t.TempDir()
@@ -55,6 +88,7 @@ func TestStartServiceIncludesBootstrapDiagnostics(t *testing.T) {
 	if err := os.WriteFile(programPath, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
 		t.Fatalf("write program: %v", err)
 	}
+	mockRootOwnedPlistStat(t, plistPath)
 
 	binDir := t.TempDir()
 	makeFakePlutil(t, binDir)
@@ -98,6 +132,7 @@ func TestStartServiceBootoutIsIdempotentBeforeBootstrap(t *testing.T) {
 	if err := os.WriteFile(programPath, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
 		t.Fatalf("write program: %v", err)
 	}
+	mockRootOwnedPlistStat(t, plistPath)
 
 	binDir := t.TempDir()
 	makeFakePlutil(t, binDir)
@@ -152,6 +187,7 @@ func TestStartServiceFailsWhenServiceDoesNotReachRunningState(t *testing.T) {
 	if err := os.WriteFile(programPath, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
 		t.Fatalf("write program: %v", err)
 	}
+	mockRootOwnedPlistStat(t, plistPath)
 
 	binDir := t.TempDir()
 	makeFakePlutil(t, binDir)

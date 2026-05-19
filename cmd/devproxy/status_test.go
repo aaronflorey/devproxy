@@ -3,6 +3,7 @@ package devproxy
 import (
 	"bytes"
 	"context"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -54,7 +55,11 @@ func TestStatusCommandPrintsConflictAndWarningDetail(t *testing.T) {
 
 func startCommandTestServer(t *testing.T, state adminapi.StateSnapshot) (string, func()) {
 	t.Helper()
-	socketPath := filepath.Join(t.TempDir(), "admin.sock")
+	dir, err := os.MkdirTemp("/tmp", "devproxy-")
+	if err != nil {
+		t.Fatalf("create short temp dir: %v", err)
+	}
+	socketPath := filepath.Join(dir, "admin.sock")
 	server, err := adminapi.NewServer(adminapi.ServerConfig{SocketPath: socketPath, State: func() adminapi.StateSnapshot { return state }})
 	if err != nil {
 		t.Fatalf("new admin server: %v", err)
@@ -62,5 +67,8 @@ func startCommandTestServer(t *testing.T, state adminapi.StateSnapshot) (string,
 	if err := server.Start(); err != nil {
 		t.Fatalf("start admin server: %v", err)
 	}
-	return socketPath, func() { _ = server.Close(context.Background()) }
+	return socketPath, func() {
+		_ = server.Close(context.Background())
+		_ = os.RemoveAll(dir)
+	}
 }
