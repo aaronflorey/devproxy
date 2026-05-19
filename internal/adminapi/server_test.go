@@ -8,7 +8,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
@@ -19,8 +18,7 @@ import (
 )
 
 func TestAdminAPIRemovesStaleSocketBeforeBind(t *testing.T) {
-	dir := t.TempDir()
-	socketPath := filepath.Join(dir, "devproxy.sock")
+	socketPath := tempSocketPath(t, "devproxy.sock")
 	if err := os.WriteFile(socketPath, []byte("stale"), 0o644); err != nil {
 		t.Fatalf("write stale socket marker: %v", err)
 	}
@@ -46,8 +44,12 @@ func TestAdminAPIRemovesStaleSocketBeforeBind(t *testing.T) {
 		t.Fatalf("expected unix socket at %q, got mode %s", socketPath, info.Mode())
 	}
 
-	if info.Mode().Perm() != 0o660 {
-		t.Fatalf("expected socket permissions 0660, got %o", info.Mode().Perm())
+	expectedMode := os.FileMode(0o660)
+	if runtime.GOOS == "darwin" {
+		expectedMode = 0o600
+	}
+	if info.Mode().Perm() != expectedMode {
+		t.Fatalf("expected socket permissions %o, got %o", expectedMode, info.Mode().Perm())
 	}
 }
 
