@@ -28,38 +28,24 @@ DevProxy is a macOS-native developer tool that watches Docker Compose projects, 
 
 ## Install
 
-From source:
+Install via Homebrew:
 
 ```bash
-mise install
-mise run test
-mise run build
-sudo ./devproxy install --with-menubar
+brew install aaronflorey/tap/devproxy
 ```
 
-Verify the runtime:
+Or, if you use [`bin`](https://github.com/aaronflorey/bin):
 
 ```bash
-devproxy status
-devproxy doctor
-devproxy routes
+bin install https://github.com/aaronflorey/devproxy
 ```
 
-## Development
+If you do not have `bin` installed, see [`aaronflorey/bin`](https://github.com/aaronflorey/bin).
+
+Install the daemon and optional menu bar app:
 
 ```bash
-mise install
-mise run fmt
-mise run test
-mise run build
-```
-
-Useful commands:
-
-```bash
-go run . status
-go run . doctor
-go run . routes
+sudo devproxy install --with-menubar
 ```
 
 ## Configuration
@@ -83,7 +69,7 @@ serving:
 Install the daemon and optional menu bar app:
 
 ```bash
-sudo ./devproxy install --with-menubar
+sudo devproxy install --with-menubar
 ```
 
 Inspect runtime health:
@@ -98,6 +84,25 @@ Remove the installed services:
 
 ```bash
 sudo devproxy uninstall --with-menubar --yes
+```
+
+## Development
+
+Build from source:
+
+```bash
+mise install
+mise run fmt
+mise run test
+mise run build
+```
+
+Useful commands:
+
+```bash
+go run . status
+go run . doctor
+go run . routes
 ```
 
 ## Contributing
