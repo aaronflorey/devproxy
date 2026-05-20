@@ -11,6 +11,8 @@ builds:
   - id: devproxy
     main: .
     binary: devproxy
+    env:
+      - CGO_ENABLED=1
     goos:
       - darwin
     goarch:
